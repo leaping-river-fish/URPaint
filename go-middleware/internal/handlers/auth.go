@@ -1,74 +1,107 @@
 package handlers
 
 import (
-	"database/sql"
+    "database/sql"
 	"encoding/json"
-	"net/http"
-	"time"
+    "net/http"
+    "time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
-	"urpaint/internal/models"
+    "github.com/golang-jwt/jwt/v5"
+    "golang.org/x/crypto/bcrypt"
 )
 
 type AuthHandler struct {
-	DB *sql.DB
+    DB *sql.DB
 	JWTSecret []byte
 }
 
-func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "Invalid input", http.StatusBadRequest)
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-	if err != nil {
-		http.Error(w, "Error hashing password", http.StatusInternalServerError)
-		return
-	}
-
-	_, err = h.DB.Exec("INSERT INTO users (email, password) VALUES ($1, $2)", user.Email, string(hashedPassword))
-	if err != nil {
-		http.Error(w, "Error saving user", http.StatusInternalServerError)
-        return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(map[string]string{"message": "User created successfully"})
+type Credentials struct {
+	Email string `json:"email"`
+	Password string `json:"password"`
 }
 
+func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+    var creds Credentials
+    if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
         http.Error(w, "Invalid input", http.StatusBadRequest)
         return
     }
 
-	var hashedPassword string
-	err := h.DB.QueryRow("SELECT password FROM users WHERE email=$1", user.Email).Scan(&hashedPassword)
+    if creds.Email == "" || creds.Password == "" {
+        http.Error(w, "Email and password required", http.StatusBadRequest)
+        return
+    }
+
+    hashed, err := bcrypt.GenerateFromPassword([]byte(creds.Password), bcrypt.DefaultCost)
     if err != nil {
-        http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+        http.Error(w, "Error hashing password", http.StatusInternalServerError)
         return
     }
 
-	if err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(user.Password)); err != nil {
-        http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+    _, err = h.DB.Exec(
+        "INSERT INTO users (email, password) Values ($1, $2)",
+        creds.Email, string(hashed),
+    )
+
+    if err != nil {
+        http.Error(w, "Could not create user (Email already used)", http.StatusConflict)
         return
     }
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": user.Email,
-		"exp": time.Now().Add(time.Hour * 24).Unix(),
-	})
-
-	tokenString, err := token.SignedString(h.JWTSecret)
-	if err != nil {
-        http.Error(w, "Error generating token", http.StatusInternalServerError)
-        return
-    }
-
-	json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+    w.Header().Set("Content-Type", "application/json")
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(map[string]string{"message": "User created"})
 }
+
+
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    var creds Credentials
+    if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+        http.Error(w, "Invalid input", http.StatusBadRequest)
+        return
+    }
+
+    var storedHash string
+    err := h.DB.QueryRow("SELECT password FROM users WHERE email = $1", creds.Email).Scan(&storedHash)
+    if err != nil {
+        http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+        return
+    }
+
+    if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(creds.Password)); err != nil {
+        http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+        return
+    }
+
+    
+    // if creds.Email != "test@example.com" || creds.Password != "password" {
+    //     http.Error(w, "Unauthorized", http.StatusUnauthorized)
+    //     return
+    // }
+
+    // Create JWT
+    claims := jwt.MapClaims{
+        "email": creds.Email,
+        "exp":   time.Now().Add(24 * time.Hour).Unix(),
+    }
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+    signed, err := token.SignedString(h.JWTSecret)
+    if err != nil {
+        http.Error(w, "Could not generate token", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{"token": signed})
+}
+
