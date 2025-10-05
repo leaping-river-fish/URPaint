@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getProfile, updateProfile, type UserProfile } from "./api.ts";
+import { API_URL ,getProfile, updateProfile, type UserProfile } from "./api.ts";
 
 function Profile() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -25,11 +25,13 @@ function Profile() {
             });
     }, [navigate]);
 
+    // Handle Logout
     const handleLogout = () => {
         localStorage.removeItem("token");
         navigate("/login");
     };
 
+    // Handle bio change
     const handleBioChange = (newBio: string) => {
         if (!profile) return;
         setProfile({ ...profile, bio: newBio });
@@ -40,6 +42,7 @@ function Profile() {
         setDebounceTimer(timer);
     }
 
+    // Save bio
     const saveBio = async (bio: string) => {
         if (!profile) return;
         setSaving(true);
@@ -52,6 +55,46 @@ function Profile() {
         }
     };
 
+    // Handle avatar change
+    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0 || !profile) return;
+
+        const file = e.target.files[0];
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setProfile({ ...profile, avatarUrl: reader.result as string });
+        };
+        reader.readAsDataURL(file);
+
+        const formData = new FormData();
+        formData.append("avatar", file);
+
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) throw new Error("No token");
+
+            const res = await fetch(`${API_URL}/profile/avatar`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                body: formData,
+            });
+
+            if (!res.ok) {
+                throw new Error("Failed to upload avatar");
+            }
+
+            const data = await res.json();
+
+            setProfile((prev) => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
+
+        } catch (err) {
+            console.error("Avatar upload failed:", err);
+        }
+    }
+
     if (!profile) {
         return (
         <div className="flex justify-center items-center h-full p-8">
@@ -63,10 +106,45 @@ function Profile() {
     return (
         <div className="p-8 flex justify-center">
             <div className="w-full max-w-md bg-white shadow rounded-lg p-6">
-                {/* Profile picture + name */}
                 <div className="flex flex-col items-center text-center">
-                <div className="w-24 h-24 bg-gray-200 rounded-full mb-4" />
+                    <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 relative">
+                        {/* Avatar */}
+                        {profile.avatarUrl ? (
+                            <img
+                                src={profile.avatarUrl}
+                                alt="Avatar"
+                                className="w-24 h-24 rounded-full object-cover"
+                            />
+                        ) : (
+                            <div className="w-24 h-24 bg-gray-200 rounded-full mb-4" />
+                        )}
+
+                        <input
+                            id="avatarUpload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleAvatarChange}
+                            className="hidden"
+                        />
+                        <label
+                            htmlFor="avatarUpload"
+                            className="absolute inset-0 flex items-center justify-center rounded-full 
+                                    bg-black/40 opacity-0 hover:opacity-100 cursor-pointer 
+                                    transition-opacity duration-200"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-6 h-6 text-white"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                                >
+                                <path d="M4 5a2 2 0 00-2 2v7a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2.586l-.707-.707A1 1 0 0012.586 4H7.414a1 1 0 00-.707.293L6 5H4z" />
+                                <path d="M10 8a4 4 0 100 8 4 4 0 000-8z" />
+                            </svg>
+                        </label>
+                    </div>
                 <h2 className="text-lg font-bold">
+                    {/* Name */}
                     {profile.email}
                 </h2>
                 </div>
