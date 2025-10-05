@@ -23,5 +23,14 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript",
+    "javascriptreact": "javascript"
+  },
+  "css.validate": false,
+  "editor.quickSuggestions": {
+    "strings": true
+  },
   "include": ["src"]
 }

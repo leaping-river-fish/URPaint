@@ -1,4 +1,4 @@
-
+// TO DO: Add Bio and Joined date to api return
 const API_URL = "http://localhost:8080"; //change based on where backend is hosted**
 
 export interface AuthResponse {
@@ -8,20 +8,25 @@ export interface AuthResponse {
 export interface UserProfile {
     id: number;
     email: string;
+    bio?: string;
+    joinedAt?: string;
 }
 
+// Signup Function
 export async function signup(email: string, password: string): Promise<void> {
     const res = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),  
+        body: JSON.stringify({ email, password }),
     });
 
     if (!res.ok) {
-        throw new Error("Signup failed");
+        const text = await res.text();
+        throw { status: res.status, message: text };
     }
 }
 
+// Login Function
 export async function login(email: string, password: string): Promise<AuthResponse> {
     const res = await fetch(`${API_URL}/login`, {
         method: "POST",
@@ -38,8 +43,10 @@ export async function login(email: string, password: string): Promise<AuthRespon
     return data;
 }
 
+// Get Profile Function
 export async function getProfile(): Promise<UserProfile> {
     const token = localStorage.getItem("token");
+    console.log(token);
     if (!token) throw new Error("No token");
 
     const res = await fetch(`${API_URL}/profile`, {
@@ -51,4 +58,24 @@ export async function getProfile(): Promise<UserProfile> {
     }
 
     return res.json();
+}
+
+// Update Profile Function
+export async function updateProfile(data: { bio: string }) {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("No token");
+
+    const res = await fetch(`${API_URL}/profile`, {
+        method: "PATCH",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to update profile");
+    }
 }
