@@ -6,7 +6,10 @@ import (
     "net/http"
     "time"
     "strings"
+    "os"
 
+    "github.com/cloudinary/cloudinary-go/v2"
+    "github.com/cloudinary/cloudinary-go/v2/api/uploader"
     "github.com/golang-jwt/jwt/v5"
     "golang.org/x/crypto/bcrypt"
     "github.com/lib/pq"
@@ -32,6 +35,11 @@ type ProfileHandler struct {
     DB *sql.DB
 }
 
+type AvatarHandler struct {
+    DB *sql.DB
+    CloudinaryURL string
+}
+
 // GET /profile
 
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -53,15 +61,17 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
         Email    string `json:"email"`
         Bio      string `json:"bio"`
         JoinedAt string `json:"joinedAt"`
+        AvatarURL string `json:"avatarUrl"`
     }
 
     var bio sql.NullString
     var createdAt sql.NullTime
+    var avatar sql.NullString
 
     err := h.DB.QueryRow(
-        "SELECT id, email, bio, created_at FROM users WHERE id = $1",
+        "SELECT id, email, bio, created_at, avatar_url FROM users WHERE id = $1",
         userID,
-    ).Scan(&profile.ID, &profile.Email, &bio, &createdAt)
+    ).Scan(&profile.ID, &profile.Email, &bio, &createdAt, &avatar)
     
     if err != nil {
         if err == sql.ErrNoRows {
@@ -84,6 +94,12 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
         profile.JoinedAt = createdAt.Time.Format(time.RFC3339)
     } else {
         profile.JoinedAt = ""
+    }
+
+    if avatar.Valid {
+        profile.AvatarURL = avatar.String
+    } else {
+        profile.AvatarURL = ""
     }
 
     w.Header().Set("Content-Type", "application/json")
@@ -229,5 +245,65 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(map[string]string{"token": signed})
 }
 
+// Upload Avatar
+func (h *AvatarHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
 
+    claims, ok := r.Context().Value("claims").(jwt.MapClaims)
+    if !ok {
+        http.Error(w, "Claims not found", http.StatusUnauthorized)
+        return
+    }
+
+    userIDFloat, ok := claims["id"].(float64)
+    if !ok {
+        http.Error(w, "Invalid user ID in claims", http.StatusUnauthorized)
+        return
+    }
+    userID := int(userIDFloat)
+
+    file, _, err := r.FormFile("avatar")
+    if err != nil {
+        http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
+        return
+    }
+    defer file.Close()
+    
+    overwrite := true
+
+    uploadParams := uploader.UploadParams{
+        Folder: "URPaint Avatars",
+        PublicID: "avatar",
+        Overwrite: &overwrite,
+        ResourceType: "image",
+    }
+
+    // Cloudinary
+    cld, err := cloudinary.NewFromURL(os.Getenv("CLOUDINARY_URL"))
+    if err != nil {
+        http.Error(w, "Cloudinary init error: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    uploadResult, err := cld.Upload.Upload(r.Context(), file, uploadParams)
+    if err != nil {
+        http.Error(w, "Upload error: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Url in DB
+    _, err = h.DB.Exec("UPDATE users SET avatar_url=$1 WHERE id=$2", uploadResult.SecureURL, userID)
+    if err != nil {
+        http.Error(w, "Failed to save avatar URL: "+err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(map[string]string{
+        "avatarUrl": uploadResult.SecureURL,
+    })
+}
 

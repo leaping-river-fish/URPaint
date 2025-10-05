@@ -30,6 +30,7 @@ func main() {
 		log.Fatal("JWT_SECRET not set")
 	}
 
+	// PostGresQL
 	connStr := "postgres://" + dbUser + ":" + dbPassword + "@" + dbHost + ":" + dbPort + "/" + dbName + "?sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -41,6 +42,17 @@ func main() {
 	defer db.Close()
 	log.Println("Connected to PostgreSQL")
 
+	// Cloudinary
+	cloudinaryURL := os.Getenv("CLOUDINARY_URL")
+	if cloudinaryURL == "" {
+		log.Fatal("CLOUDINARY_URL not set")
+	}
+	avatarHandler := &handlers.AvatarHandler{
+		DB:            db,
+		CloudinaryURL: cloudinaryURL,
+	}
+
+	// Handlers
 	authHandler := &handlers.AuthHandler{
 		DB:        db,
 		JWTSecret: []byte(jwtSecret),
@@ -67,6 +79,9 @@ func main() {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})))
+
+	// Upload Profile Avatar 
+	mux.Handle("/profile/avatar", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(avatarHandler.UploadAvatar)))
 
 	handler := withCORS(mux)
 
