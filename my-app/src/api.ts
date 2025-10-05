@@ -1,5 +1,5 @@
 // TO DO: Add Bio and Joined date to api return
-const API_URL = "http://localhost:8080"; //change based on where backend is hosted**
+export const API_URL = "http://localhost:8080"; //change based on where backend is hosted**
 
 export interface AuthResponse {
     token: string;
@@ -10,6 +10,7 @@ export interface UserProfile {
     email: string;
     bio?: string;
     joinedAt?: string;
+    avatarUrl?: string;
 }
 
 // Signup Function
@@ -78,4 +79,23 @@ export async function updateProfile(data: { bio: string }) {
         const text = await res.text();
         throw new Error(text || "Failed to update profile");
     }
+}
+
+// Upload Avatar Function
+export async function uploadAvatar(file: File) {
+    const token = localStorage.getItem("token");
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    const res = await fetch(`${API_URL}/profile/avatar`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData,
+    });
+
+    if (!res.ok) {
+        throw new Error("Failed to upload avatar");
+    }
+
+    return res.json();
 }
