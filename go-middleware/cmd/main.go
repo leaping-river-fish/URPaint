@@ -2,12 +2,12 @@ package main
 
 import (
     "database/sql"
-    "encoding/json" 
+    // "encoding/json" 
     "log"
     "net/http"
     "os"
     
-    "github.com/golang-jwt/jwt/v5"
+    // "github.com/golang-jwt/jwt/v5"
     "github.com/joho/godotenv"
     _ "github.com/lib/pq"
 
@@ -46,27 +46,28 @@ func main() {
 		JWTSecret: []byte(jwtSecret),
 	}
 
+	profileHandler := &handlers.ProfileHandler{
+		DB: db,
+	}
+
 	mux := http.NewServeMux()
+
+	// Login and Signup
 	mux.HandleFunc("/signup", authHandler.Signup)
 	mux.HandleFunc("/login", authHandler.Login)
 
-	// Protected profile route
+	// Return and Update Profile Information
 	mux.Handle("/profile", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := r.Context().Value("claims").(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "Claims not found", http.StatusUnauthorized)
-			return
+		switch r.Method {
+		case http.MethodGet:
+			profileHandler.GetProfile(w, r)
+		case http.MethodPatch:
+			profileHandler.UpdateProfile(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
-		profile := map[string]string{
-			"email": claims["email"].(string),
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(profile)
 	})))
 
-	// Wrap with CORS
 	handler := withCORS(mux)
 
 	log.Println("Server running on port 8080")
@@ -78,7 +79,7 @@ func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {
