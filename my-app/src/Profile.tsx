@@ -10,24 +10,33 @@ function Profile() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        getProfile()
-            .then((data) => {
-                console.log("Profile data:", data);
-                setProfile({
-                    ...data,
-                    bio: data.bio ?? "",
-                    joinedAt: data.joinedAt ?? new Date().toISOString(),
-                });
-            })
-            .catch((err) => {
+        const cached = localStorage.getItem("userProfile");
+        if (cached) {
+        try {
+            setProfile(JSON.parse(cached));
+        } catch {
+            console.warn("Failed to parse cached profile");
+        }
+        }
+
+        const fetchProfile = async () => {
+            try {
+                const fresh = await getProfile();
+                setProfile(fresh);
+                localStorage.setItem("userProfile", JSON.stringify(fresh));
+            } catch (err) {
                 console.error("Profile fetch failed:", err);
                 navigate("/login");
-            });
+            }
+        };
+
+        fetchProfile();
     }, [navigate]);
 
     // Handle Logout
     const handleLogout = () => {
         localStorage.removeItem("token");
+        localStorage.removeItem("userProfile");
         navigate("/login");
     };
 
@@ -57,18 +66,19 @@ function Profile() {
 
     // Handle avatar change
     const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files || e.target.files.length === 0 || !profile) return;
+        if (!e.target.files?.length || !profile) return;
 
         const file = e.target.files[0];
-
         const reader = new FileReader();
         reader.onload = () => {
-            setProfile({ ...profile, avatarUrl: reader.result as string });
+            const newProfile = { ...profile, avatarUrl: reader.result as string };
+            setProfile(newProfile);
+            localStorage.setItem("userProfile", JSON.stringify(newProfile));
         };
         reader.readAsDataURL(file);
 
-        const formData = new FormData();
-        formData.append("avatar", file);
+        // const formData = new FormData();
+        // formData.append("avatar", file);
 
         try {
             const token = localStorage.getItem("token");
@@ -79,7 +89,11 @@ function Profile() {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
-                body: formData,
+                body: (() => {
+                    const formData = new FormData();
+                    formData.append("avatar", file);
+                    return formData;
+                })(),
             });
 
             if (!res.ok) {
@@ -88,7 +102,9 @@ function Profile() {
 
             const data = await res.json();
 
-            setProfile((prev) => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
+            const updated = { ...profile, avatarUrl: data.avatarUrl };
+            setProfile(updated);
+            localStorage.setItem("userProfile", JSON.stringify(updated));
 
         } catch (err) {
             console.error("Avatar upload failed:", err);
@@ -104,7 +120,7 @@ function Profile() {
     }
 
     return (
-        <div className="p-8 flex justify-center">
+        <div className="p-8 min-h-screen bg-gradient-to-b from-sky-100 to-pink-100 flex justify-center">
             <div className="w-full max-w-md bg-white shadow rounded-lg p-6">
                 <div className="flex flex-col items-center text-center">
                     <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 relative">

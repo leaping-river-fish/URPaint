@@ -13,14 +13,14 @@ function Login() {
     const handleLogin = async () => {
         try {
             await login(email, password);
-            navigate("/profile");
+            navigate("/hub");
         } catch (err: any) {
             alert(err.message);
         }
     };
 
     return (
-        <div className="bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-b from-sky-100 to-pink-100 relative">
 
             {/*waves*/}
 
@@ -69,7 +69,7 @@ function Login() {
             <div className="absolute top-0 left-0 w-full z-50">
                 <div className="min-h-screen flex flex-col items-center">
                     <div className="flex flex-col justify-center sm:h-screen p-4">
-                        <div className="max-w-md w-full mx-auto border border-slate-300 rounded-2xl p-8">
+                        <div className="max-w-md w-full mx-auto bg-white border border-slate-300 rounded-2xl p-8 shadow-lg">
                             <div className="text-center mb-12">
                                 <URPaintLogo className="w-full h-auto max-w-xs"/>
                             </div>

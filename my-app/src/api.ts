@@ -1,4 +1,3 @@
-// TO DO: Add Bio and Joined date to api return
 export const API_URL = "http://localhost:8080"; //change based on where backend is hosted**
 
 export interface AuthResponse {
