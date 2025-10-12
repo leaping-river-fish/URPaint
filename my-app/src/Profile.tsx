@@ -121,6 +121,25 @@ function Profile() {
 
     return (
         <div className="p-8 min-h-screen bg-gradient-to-b from-sky-100 to-pink-100 flex justify-center">
+
+            {/* Back to Hub Button */}
+            <button
+                onClick={() => navigate("/hub")}
+                className="absolute top-6 left-6 flex items-center space-x-1 px-3 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 shadow-md transition"
+            >
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span className="font-medium">Back to Hub</span>
+            </button>
+
             <div className="w-full max-w-md bg-white shadow rounded-lg p-6">
                 <div className="flex flex-col items-center text-center">
                     <div className="w-24 h-24 bg-gray-200 rounded-full mb-4 relative">
@@ -194,17 +213,17 @@ function Profile() {
 
                 {/* Placeholder for extra details */}
                 <div className="mt-6 space-y-2 text-gray-700">
-                <p className="text-sm">Additional details go here</p>
+                    <p className="text-sm">Additional details go here</p>
                 </div>
 
                 {/* Actions */}
                 <div className="mt-6">
-                <button
-                    onClick={() => setShowLogoutModal(true)}
-                    className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                    Logout
-                </button>
+                    <button
+                        onClick={() => setShowLogoutModal(true)}
+                        className="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                        Logout
+                    </button>
                 </div>
             </div>
 
@@ -220,21 +239,21 @@ function Profile() {
                     >
                         <h3 className="text-lg font-semibold mb-4">Confirm Logout</h3>
                         <p className="text-sm text-gray-600 mb-6">
-                        Are you sure you want to log out?
+                            Are you sure you want to log out?
                         </p>
                         <div className="flex justify-end space-x-3">
-                        <button
-                            onClick={() => setShowLogoutModal(false)}
-                            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleLogout}
-                            className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
-                        >
-                            Logout
-                        </button>
+                            <button
+                                onClick={() => setShowLogoutModal(false)}
+                                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleLogout}
+                                className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
+                            >
+                                Logout
+                            </button>
                         </div>
                     </div>
                 </div>

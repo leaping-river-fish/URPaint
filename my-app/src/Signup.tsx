@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from 'react-router-dom';
-import URPaintLogo from './URPaintLogo';
+import URPaintLogo from "./components/URPaintLogo";
 import { signup, login } from "./api";
 import "./app.css";
 
