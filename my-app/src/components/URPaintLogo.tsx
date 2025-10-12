@@ -3,7 +3,6 @@ const URPaintLogo = ({ className }: { className?: string }) => (
         className={className}
         viewBox="0 0 143 30"
         width="100%"
-        height="auto"
         xmlns="http://www.w3.org/2000/svg"
         fill="url(#rainbowGradient)"
         preserveAspectRatio="xMidYMid meet"
