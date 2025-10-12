@@ -18,15 +18,41 @@ counter = 0
 ix, iy = -1, -1
 history = []
 
-def convert_to_coloring_page(image):
+# Functions
+
+def convert_to_coloring_page(image): # Change screenshot to coloring page/ sketch page TO DO: Allow user to select what kind.
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    inv = 255 - gray
-    blur = cv2.GaussianBlur(inv, (21, 21), 0)
-    sketch = cv2.divide(gray, 255 - blur, scale=256.0)
-    return cv2.cvtColor(sketch, cv2.COLOR_GRAY2BGR)
+
+    gray = cv2.equalizeHist(gray)
+
+    gray_blur = cv2.medianBlur(gray, 7)
+
+    edges = cv2.adaptiveThreshold(
+        gray_blur,
+        255,
+        cv2.ADAPTIVE_THRESH_MEAN_C,
+        cv2.THRESH_BINARY,
+        9,
+        9
+    )
+
+    color = cv2.bilateralFilter(image, d=9, sigmaColor=200, sigmaSpace=200)
+    cartoon = cv2.bitwise_and(color, color, mask=edges)
+    
+    return cartoon
+
+    # potential other mode
+
+    # inv = 255 - gray
+
+    # blur = cv2.GaussianBlur(inv, (21, 21), 0)
+
+    # sketch = cv2.divide(gray, 255 - blur, scale=256.0)
+
+    # return cv2.cvtColor(sketch, cv2.COLOR_GRAY2BGR)
 
 def draw_circle(event, x, y, flags, param):
-    global ix, iy, drawing, counter, history
+    global ix, iy, drawing, counter, history # is this needed?
     image = param['image']
     if event == cv2.EVENT_LBUTTONDOWN:
         drawing = True
@@ -40,7 +66,7 @@ def draw_circle(event, x, y, flags, param):
         drawing = False
         cv2.circle(image, (x, y), DRAW_RADIUS, COLOURS[counter], -1)
 
-def capture_image_from_webcam():
+def capture_image_from_webcam(): # take image 
     webcam = cv2.VideoCapture(0)
     while True:
         ret, frame = webcam.read()
@@ -61,7 +87,7 @@ def capture_image_from_webcam():
     cv2.destroyAllWindows()
     return frame
 
-def start_drawing(image):
+def start_drawing(image): # drawing function
     global history
     history = []
     cv2.namedWindow('Coloring Page')
