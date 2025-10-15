@@ -22,15 +22,18 @@ async def convert_image(file: UploadFile = File(...)):
     try:
         # Read the uploaded image
         contents = await file.read()
+
         if not contents:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
         
-        contents = await file.read()
         if len(contents) > MAX_FILE_SIZE:
             raise HTTPException(status_code=400, detail="File too large. Max size is 5 MB.")
 
         npimg = np.frombuffer(contents, np.uint8)
         image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+        if image is None:
+            raise HTTPException(status_code=400, detail="Failed to decode image.")
 
         # Process image
         coloring_page = convert_to_coloring_page(image)
@@ -40,18 +43,19 @@ async def convert_image(file: UploadFile = File(...)):
         cv2.imwrite(temp_file.name, coloring_page)
         temp_file.close()
 
-        response = FileResponse(temp_file.name, media_type="image/png")
-        response.background = BackgroundTasks(lambda: os.remove(temp_file.name))
-        return response
+         # Return the processed image and clean it up afterward
+        background_tasks = BackgroundTasks()
+        background_tasks.add_task(os.remove, temp_file.name)
+
+        return FileResponse(temp_file.name, media_type="image/png", background=background_tasks)
     
     except Exception as e:
-        # Log the error for debugging
         print("Error processing image:", e)
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # add origins where neeeded
+    allow_origins=["http://localhost:5173"],  # add origins where needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
