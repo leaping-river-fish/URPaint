@@ -1,7 +1,7 @@
-// TO DO: Add the result to be displayed in frontend, and add coloring options like scribbl.io, also make sure webcam view fills entire
-// window, etc
+// TO DO: Add free draw mode, make tool bar much more aesthetic, add layers
 import { useState } from "react";
 import Sidebar from "./components/Sidebar";
+import DrawingBoard from "./components/DrawingBoard";
 
 function Studio() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -17,23 +17,32 @@ function Studio() {
         }
     };
 
-    const handleUpload = async () => {
+    const handleUpload = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
         if (!image) return;
 
         try {
+            setLoading(true);
+
             const res = await fetch(image); 
-            const blob = await res.blob();         
+            const blob = await res.blob();
+
             const formData = new FormData();
             formData.append("file", blob, "image.png");
 
-            setLoading(true);
             const response = await fetch("http://localhost:8000/convert", {
                 method: "POST",
                 body: formData,
             });
 
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}`);
+            }
+
             const processedBlob = await response.blob();
-            setResult(URL.createObjectURL(processedBlob));
+            const processedUrl = URL.createObjectURL(processedBlob);
+            setResult(processedUrl);
         } catch (err) {
             console.error("Error uploading image:", err);
         } finally {
@@ -112,7 +121,7 @@ function Studio() {
                         Welcome to the Studio! 🎨
                     </h2>
                     <p className="text-slate-600 max-w-md mt-4">
-                        Here you can upload or take a photo to create your coloring page.
+                        Upload or take a photo to create your coloring page.
                     </p>
 
                     {/* Workspace Window */}
@@ -124,20 +133,17 @@ function Studio() {
                                 autoPlay
                                 playsInline
                                 ref={videoEl => { if (videoEl) videoEl.srcObject = webcamStream; }}
-                                className="w-full h-full object-contain rounded-xl"
+                                className="absolute inset-0 w-full h-full object-cover rounded-2xl"
                             />
                         )}
 
                         {/* Uploaded or captured image */}
                         {image && !result && (
-                            <img src={image} alt="Original" className="w-full h-full object-contain rounded-xl" />
+                            <img src={image} alt="Original" className="absolute inset-0 w-full h-full object-cover rounded-2xl" />
                         )}
 
                         {/* Converted coloring page */}
-                        {result && (
-                            <img src={result} alt="Coloring Page" className="w-full h-full object-contain rounded-xl" />
-                            // Later replace <img> with <canvas> for drawing
-                        )}
+                        {result && <DrawingBoard baseImage={result} />}
 
                         {/* Overlayed buttons */}
                         {!image && !usingWebcam && (
@@ -173,18 +179,15 @@ function Studio() {
 
                         {/* Convert button only appears if image exists and result is null */}
                         {image && !result && !usingWebcam && (
-                            <form
-                                onSubmit={handleUpload} 
-                                className="absolute bottom-4 flex gap-4 items-center"
-                            >
+                            <div className="absolute bottom-4 flex gap-4 items-center">
                                 <button
-                                    type="submit"
+                                    onClick={handleUpload}
                                     className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
                                     disabled={loading}
                                 >
                                     {loading ? "Processing..." : "Convert to Coloring Page"}
                                 </button>
-                            </form>
+                            </div>
                         )}
                     </div>
                 </main>
