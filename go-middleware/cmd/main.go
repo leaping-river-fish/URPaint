@@ -52,6 +52,12 @@ func main() {
 		CloudinaryURL: cloudinaryURL,
 	}
 
+	// Gallery
+	galleryHandler := &handlers.GalleryHandler{
+		DB:            db,
+		CloudinaryURL: cloudinaryURL,
+	}
+
 	// Handlers
 	authHandler := &handlers.AuthHandler{
 		DB:        db,
@@ -82,6 +88,18 @@ func main() {
 
 	// Upload Profile Avatar 
 	mux.Handle("/profile/avatar", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(avatarHandler.UploadAvatar)))
+
+	// Upload Drawing
+	mux.Handle("/gallery/upload", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.UploadDrawing)))
+
+	// Get Drawing
+	mux.Handle("/gallery", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.GetGallery)))
+
+	// Rename Drawing
+	mux.Handle("/gallery/rename", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.RenameDrawing)))
+
+	// Delete Drawing
+	mux.Handle("/gallery/delete", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.DeleteDrawing)))
 
 	handler := withCORS(mux)
 
