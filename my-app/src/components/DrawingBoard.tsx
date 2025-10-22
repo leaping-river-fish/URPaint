@@ -1,136 +1,140 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Undo2, Redo2, Brush, Move, X, Plus, Minus } from "lucide-react";
 import { DrawingProvider, useDrawing } from "./DrawingContext";
 import useIsMobile from "./useIsMobile";
 
-function DrawingCanvas({ baseImage }: { baseImage: string }) {
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-    const [drawing, setDrawing] = useState(false);
-    const [imageLoaded, setImageLoaded] = useState(false);
+const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
+    ({ baseImage }, ref) => {
+        const canvasRef = useRef<HTMLCanvasElement | null>(null);
+        const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+        const [drawing, setDrawing] = useState(false);
+        const [imageLoaded, setImageLoaded] = useState(false);
 
-    const { color, lineWidth, saveState } = useDrawing();
+        const { color, lineWidth, saveState } = useDrawing();
 
-    useEffect (() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
+        useEffect (() => {
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) return;
 
-        const parent = canvas.parentElement;
-        if (!parent) return;
+            const parent = canvas.parentElement;
+            if (!parent) return;
 
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
 
-        const restored = loadCanvasFromStorage(ctx, canvas);
-        if (restored) {
+            const restored = loadCanvasFromStorage(ctx, canvas);
+            if (restored) {
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+                saveState(canvas);
+                return;
+            }
+            
+            if (!baseImage) {
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                const img = new Image();
+                img.src = baseImage;
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                };
+            }
+
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
             ctx.strokeStyle = color;
             ctx.lineWidth = lineWidth;
+            ctxRef.current = ctx;
             saveState(canvas);
-            return;
-        }
-        
-        if (!baseImage) {
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        } else {
+            setImageLoaded(true);
+        }, [baseImage]);
+
+        // Update brush dynamically
+        useEffect (() => {
+            if (ctxRef.current) {
+                ctxRef.current.strokeStyle = color;
+                ctxRef.current.lineWidth = lineWidth;
+            }
+        }, [color, lineWidth]);
+
+        const STORAGE_KEY = baseImage ? "studio-uploaded-draw" : "studio-free-draw";
+
+        const saveCanvasToStorage = (canvas: HTMLCanvasElement) => {
+            try {
+                const dataURL = canvas.toDataURL("image/png");
+                localStorage.setItem(STORAGE_KEY, dataURL);
+            } catch (err) {
+                console.error("Error saving canvas to storage", err);
+            }
+        };
+
+        const loadCanvasFromStorage = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+
             const img = new Image();
-            img.src = baseImage;
+            img.src = saved;
             img.onload = () => {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                ctxRef.current = ctx;
+                setImageLoaded(true);
             };
-        }
-
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-        ctx.strokeStyle = color;
-        ctx.lineWidth = lineWidth;
-        ctxRef.current = ctx;
-        saveState(canvas);
-        setImageLoaded(true);
-    }, [baseImage]);
-
-    // Update brush dynamically
-    useEffect (() => {
-        if (ctxRef.current) {
-            ctxRef.current.strokeStyle = color;
-            ctxRef.current.lineWidth = lineWidth;
-        }
-    }, [color, lineWidth]);
-
-    const STORAGE_KEY = baseImage ? "studio-uploaded-draw" : "studio-free-draw";
-
-    const saveCanvasToStorage = (canvas: HTMLCanvasElement) => {
-        try {
-            const dataURL = canvas.toDataURL("image/png");
-            localStorage.setItem(STORAGE_KEY, dataURL);
-        } catch (err) {
-            console.error("Error saving canvas to storage", err);
-        }
-    };
-
-    const loadCanvasFromStorage = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return false;
-
-        const img = new Image();
-        img.src = saved;
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            ctxRef.current = ctx;
-            setImageLoaded(true);
+            return true;
         };
-        return true;
-    };
 
-    const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        const canvas = e.currentTarget;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY,
+        const getCanvasCoords = (e: React.MouseEvent<HTMLCanvasElement>) => {
+            const canvas = e.currentTarget;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY,
+            };
         };
-    };
 
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!ctxRef.current || !imageLoaded) return;
-        const { x, y } = getCanvasCoords(e);
-        ctxRef.current.beginPath();
-        ctxRef.current.moveTo(x, y);
-        setDrawing(true); 
-    };
+        const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+            if (!ctxRef.current || !imageLoaded) return;
+            const { x, y } = getCanvasCoords(e);
+            ctxRef.current.beginPath();
+            ctxRef.current.moveTo(x, y);
+            setDrawing(true); 
+        };
 
-    const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-        if (!drawing || !ctxRef.current) return;
-        const { x, y } = getCanvasCoords(e);
-        ctxRef.current.lineTo(x, y);
-        ctxRef.current.stroke();
-    };
+        const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+            if (!drawing || !ctxRef.current) return;
+            const { x, y } = getCanvasCoords(e);
+            ctxRef.current.lineTo(x, y);
+            ctxRef.current.stroke();
+        };
 
-    const stopDrawing = () => {
-        if (!drawing || !ctxRef.current || !canvasRef.current) return;
-        ctxRef.current.closePath();
-        setDrawing(false);
-        saveState(canvasRef.current);
-        saveCanvasToStorage(canvasRef.current);
-    };
+        const stopDrawing = () => {
+            if (!drawing || !ctxRef.current || !canvasRef.current) return;
+            ctxRef.current.closePath();
+            setDrawing(false);
+            saveState(canvasRef.current);
+            saveCanvasToStorage(canvasRef.current);
+        };
 
-    return (
-        <canvas 
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            className="w-full h-full cursor-crosshair rounded-2xl"
-        />
-    );
-}
+        useImperativeHandle(ref, () => canvasRef.current!);
+
+        return (
+            <canvas
+                ref={canvasRef}
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                className="w-full h-full cursor-crosshair rounded-2xl"
+            />
+        );
+    }
+);
 
 function DrawingToolbar() {
     const { color, setColor, lineWidth, setLineWidth, undo, redo } = useDrawing();
@@ -351,13 +355,15 @@ function DrawingToolbar() {
     );
 }
 
-export default function DrawingBoard({ baseImage }: { baseImage: string }) {
-    return (
-        <DrawingProvider>
-            <div className="flex flex-col items-center justify-center w-full h-full relative">
-                <DrawingCanvas baseImage={baseImage} />
-                <DrawingToolbar />
-            </div>
-        </DrawingProvider>
-    );
-}
+export default forwardRef<HTMLCanvasElement, { baseImage: string }>(
+    function DrawingBoard({ baseImage }, ref) {
+        return (
+            <DrawingProvider>
+                <div className="flex flex-col items-center justify-center w-full h-full relative">
+                    <DrawingCanvas baseImage={baseImage} ref={ref} />
+                    <DrawingToolbar />
+                </div>
+            </DrawingProvider>
+        );
+    }
+);

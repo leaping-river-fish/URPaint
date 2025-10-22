@@ -1,32 +1,32 @@
-// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers, start on gallery
-import { useState } from "react";
+// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers,
+import { useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard";
 
 function Studio() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [image, setImage] = useState<string | null>(null);
     const [result, setResult] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [usingWebcam, setUsingWebcam] = useState(false);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
     const [freeDrawMode, setFreeDrawMode] = useState(false);
+    const [webcamImage, setWebcamImage] = useState<string | null>(null);
+    const [uploadImage, setUploadImage] = useState<string | null>(null);
+    const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setImage(URL.createObjectURL(e.target.files[0]));
-        }
-    };
+
+    const drawingBoardRef = useRef<HTMLCanvasElement | null>(null);
 
     const handleUpload = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
 
-        if (!image) return;
+        const source = webcamImage || uploadImage;
+        if (!source) return;
 
         try {
             setLoading(true);
 
-            const res = await fetch(image); 
+            const res = await fetch(source); 
             const blob = await res.blob();
 
             const formData = new FormData();
@@ -77,14 +77,49 @@ function Studio() {
             if (ctx) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const dataUrl = canvas.toDataURL("image/png");
-            setImage(dataUrl);
+            setWebcamImage(dataUrl);
             
             // Stop webcam
-            webcamStream.getTracks().forEach(track => track.stop());
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+            }
             setWebcamStream(null);
             setUsingWebcam(false);
         };
     }
+
+    const handleSaveToGallery = () => {
+        const canvas = drawingBoardRef.current;
+        if(!canvas) return;
+
+        canvas.toBlob(async (blob) => {
+            if (!blob) return;
+
+            const formData = new FormData();
+            formData.append("drawing", blob, "drawing.png");
+
+            const token = localStorage.getItem("token");
+            if (!token) {
+                alert("You must be logged in to save drawings.");
+                return;
+            }
+
+            try {
+                const res = await fetch("http://localhost:8080/gallery/upload", {
+                    method: "POST",
+                    body: formData,
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (!res.ok) throw new Error("Failed to save drawing");
+
+                alert("Drawing saved to your gallery!");
+            } catch (err) {
+                console.error(err);
+                alert("Error saving drawing");
+            }
+        });
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-sky-100 to-pink-100 flex">
@@ -130,9 +165,10 @@ function Studio() {
                         <button
                             onClick={() => {
                                 setFreeDrawMode(!freeDrawMode);
-                                setImage(null);
                                 setResult(null);
                                 setUsingWebcam(false);
+                                setWebcamImage(null);
+                                setUploadImage(null);
                             }}
                             className={`px-4 py-2 rounded-lg text-white font-medium transition ${
                                 freeDrawMode
@@ -147,10 +183,35 @@ function Studio() {
                     {/* Workspace Window */}
                     <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[600px] flex items-center justify-center mt-6">
                         {/* Free Draw Mode */}
-                        {freeDrawMode && <DrawingBoard baseImage={""} />}
-
+                        {freeDrawMode && <DrawingBoard baseImage={""} ref={drawingBoardRef} />}
+                        
+                        {/* Initial */}
+                        {!uploadImage && !webcamImage && !usingWebcam && !freeDrawMode && (
+                            <div className="absolute bottom-4 flex gap-4">
+                                <button
+                                    onClick={startWebcam}
+                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600"
+                                >
+                                    Use Webcam
+                                </button>
+                                <label className="px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600 cursor-pointer">
+                                    Upload Image
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setUploadImage(URL.createObjectURL(e.target.files[0]));
+                                        }
+                                    }}
+                                    className="hidden"
+                                />
+                                </label>
+                            </div>
+                        )}
+                        
                         {/* Webcam live feed */}
-                        {!freeDrawMode && usingWebcam && webcamStream && (
+                        {usingWebcam && !webcamImage && webcamStream && (
                             <video 
                                 autoPlay
                                 playsInline
@@ -159,59 +220,164 @@ function Studio() {
                             />
                         )}
 
-                        {/* Uploaded or captured image */}
-                        {!freeDrawMode && image && !result && (
-                            <img src={image} alt="Original" className="absolute inset-0 w-full h-full object-cover rounded-2xl" />
+                        {/* Captured webcam image */}
+                        {webcamImage && !freeDrawMode && (
+                            <img
+                                src={webcamImage}
+                                alt="Captured"
+                                className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                            />
+                        )}
+
+                        {/* Uploaded image */}
+                        {uploadImage && !freeDrawMode && (
+                            <img
+                                src={uploadImage}
+                                alt="Uploaded"
+                                className="absolute inset-0 w-full h-full object-cover rounded-2xl"
+                            />
                         )}
 
                         {/* Converted coloring page */}
-                        {!freeDrawMode && result && <DrawingBoard baseImage={result} />}
+                        {!freeDrawMode && result && <DrawingBoard baseImage={result} ref={drawingBoardRef} />}
 
-                        {/* Overlayed buttons */}
-                        {!freeDrawMode && !image && !usingWebcam && (
+                        {/* Webcam buttons */}
+                        {usingWebcam && !webcamImage && (
                             <div className="absolute bottom-4 flex gap-4">
                                 <button
-                                    onClick={startWebcam}
-                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
+                                    onClick={captureFromWebcam}
+                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                                 >
-                                    Use Webcam
+                                    Capture Image
                                 </button>
-
-                                <label className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600 cursor-pointer">
-                                    Upload Image
-                                    <input 
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleFileChange}
-                                        className="hidden"
-                                    />
-                                </label>
+                                <button
+                                    onClick={() => {
+                                        webcamStream?.getTracks().forEach(track => track.stop());
+                                        setWebcamStream(null);
+                                        setUsingWebcam(false);
+                                    }}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                >
+                                    Cancel
+                                </button>
                             </div>
                         )}
 
-                        {/* Capture button */}
-                        {!freeDrawMode && usingWebcam && (
-                            <button
-                                onClick={captureFromWebcam}
-                                className="absolute bottom-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                            >
-                                Capture Image
-                            </button>
+                        {webcamImage && !freeDrawMode && !result && (
+                            <div className="absolute bottom-4 flex gap-4">
+                                <button
+                                    onClick={() => {
+                                        setWebcamImage(null);
+                                        startWebcam();
+                                    }}
+                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
+                                >
+                                    Retake Photo
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setWebcamImage(null);
+                                        setUsingWebcam(false);
+                                    }}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Upload buttons */}
+                        {uploadImage && !freeDrawMode && !result && (
+                            <div className="absolute bottom-4 flex gap-4">
+                                <label className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 cursor-pointer">
+                                    Upload Another
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setUploadImage(URL.createObjectURL(e.target.files[0]));
+                                            }
+                                        }}
+                                        className="hidden"
+                                    />
+                                </label>
+                                <button
+                                    onClick={() => setUploadImage(null)}
+                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         )}
 
                         {/* Convert button */}
-                        {!freeDrawMode && image && !result && !usingWebcam && (
-                            <div className="absolute bottom-4 flex gap-4 items-center">
+                        {(uploadImage || webcamImage) && !result && (
+                            <div className="absolute bottom-4 right-4">
                                 <button
                                     onClick={handleUpload}
-                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
+                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                                     disabled={loading}
                                 >
                                     {loading ? "Processing..." : "Convert to Coloring Page"}
                                 </button>
                             </div>
-                        )}                      
+                        )}
                     </div>
+
+                    {/* Save button */}
+                    {(freeDrawMode || result) && (
+                        <div className="flex justify-between max-w-4xl w-full mt-4 mx-auto">
+                            {/* Restart Button */}
+                            <button
+                                onClick={() => setShowRestartConfirm(true)}
+                                className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600"
+                            >
+                                Restart
+                            </button>
+
+                            {/* Save Button */}
+                            <button
+                                onClick={handleSaveToGallery}
+                                className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600"
+                            >
+                                Save to Gallery
+                            </button>
+                        </div>
+                    )} 
+                    {showRestartConfirm && (
+                        <div className="fixed inset-0 flex items-center justify-center z-50">
+                            <div className="absolute inset-0 bg-black/30"></div>
+                            <div className="relative bg-white rounded-2xl p-6 w-96 flex flex-col items-center shadow-xl z-10">
+                                <h2 className="text-lg font-semibold mb-4">Confirm Restart</h2>
+                                <p className="text-slate-700 mb-6 text-center">
+                                    Are you sure you want to restart? All unsaved work will be lost.
+                                </p>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => {
+                                            setFreeDrawMode(false);
+                                            setUploadImage(null);
+                                            setWebcamImage(null);
+                                            setResult(null);
+                                            setUsingWebcam(false);
+                                            setWebcamStream(null);
+                                            setShowRestartConfirm(false);
+                                        }}
+                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                    >
+                                        Yes, Restart
+                                    </button>
+                                    <button
+                                        onClick={() => setShowRestartConfirm(false)}
+                                        className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </main>
             </div>
         </div>

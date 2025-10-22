@@ -1,3 +1,4 @@
+// TO DO: Fix backgrounds of saved images, update backend with arranged order, why is grid just a column? 
 import { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import {
