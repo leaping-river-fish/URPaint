@@ -5,6 +5,7 @@ import Login from './Login';
 import Profile from "./Profile";
 import Hub from './Hub';
 import Studio from './Studio';
+import Gallery from './Gallery';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
             <Route path="/profile" element={<Profile />} /> 
             <Route path="/hub" element={<Hub />} />
             <Route path="/studio" element={<Studio />} />
+            <Route path="/gallery" element={<Gallery />} />
         </Routes>
     </Router>
   );

@@ -7,5 +7,21 @@ export default {
   theme: {
     extend: {},
   },
-  plugins: [],
+  plugins: [
+    function ({ addUtilities }) {
+      addUtilities({
+        '.no-arrows': {
+          '-moz-appearance': 'textfield', 
+        },
+        '.no-arrows::-webkit-inner-spin-button': {
+          '-webkit-appearance': 'none',
+          margin: '0',
+        },
+        '.no-arrows::-webkit-outer-spin-button': {
+          '-webkit-appearance': 'none',
+          margin: '0',
+        },
+      });
+    },
+  ],
 }

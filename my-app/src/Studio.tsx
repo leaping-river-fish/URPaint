@@ -1,4 +1,4 @@
-// TO DO: Add free draw mode, make tool bar much more aesthetic, add layers
+// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers, start on gallery
 import { useState } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard";
@@ -10,6 +10,7 @@ function Studio() {
     const [loading, setLoading] = useState(false);
     const [usingWebcam, setUsingWebcam] = useState(false);
     const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
+    const [freeDrawMode, setFreeDrawMode] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -124,11 +125,32 @@ function Studio() {
                         Upload or take a photo to create your coloring page.
                     </p>
 
+                    {/* Free Draw Toggle */}
+                    <div className="mt-4">
+                        <button
+                            onClick={() => {
+                                setFreeDrawMode(!freeDrawMode);
+                                setImage(null);
+                                setResult(null);
+                                setUsingWebcam(false);
+                            }}
+                            className={`px-4 py-2 rounded-lg text-white font-medium transition ${
+                                freeDrawMode
+                                    ? "bg-pink-500 hover:bg-pink-600"
+                                    : "bg-sky-500 hover:bg-sky-600"
+                            }`}
+                        >
+                            {freeDrawMode ? "Exit Free Draw Mode" : "Start Free Draw Mode"}
+                        </button>
+                    </div>
+
                     {/* Workspace Window */}
                     <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[600px] flex items-center justify-center mt-6">
-                        
+                        {/* Free Draw Mode */}
+                        {freeDrawMode && <DrawingBoard baseImage={""} />}
+
                         {/* Webcam live feed */}
-                        {usingWebcam && webcamStream && (
+                        {!freeDrawMode && usingWebcam && webcamStream && (
                             <video 
                                 autoPlay
                                 playsInline
@@ -138,15 +160,15 @@ function Studio() {
                         )}
 
                         {/* Uploaded or captured image */}
-                        {image && !result && (
+                        {!freeDrawMode && image && !result && (
                             <img src={image} alt="Original" className="absolute inset-0 w-full h-full object-cover rounded-2xl" />
                         )}
 
                         {/* Converted coloring page */}
-                        {result && <DrawingBoard baseImage={result} />}
+                        {!freeDrawMode && result && <DrawingBoard baseImage={result} />}
 
                         {/* Overlayed buttons */}
-                        {!image && !usingWebcam && (
+                        {!freeDrawMode && !image && !usingWebcam && (
                             <div className="absolute bottom-4 flex gap-4">
                                 <button
                                     onClick={startWebcam}
@@ -167,8 +189,8 @@ function Studio() {
                             </div>
                         )}
 
-                        {/* Capture button when using webcam */}
-                        {usingWebcam && (
+                        {/* Capture button */}
+                        {!freeDrawMode && usingWebcam && (
                             <button
                                 onClick={captureFromWebcam}
                                 className="absolute bottom-4 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
@@ -177,8 +199,8 @@ function Studio() {
                             </button>
                         )}
 
-                        {/* Convert button only appears if image exists and result is null */}
-                        {image && !result && !usingWebcam && (
+                        {/* Convert button */}
+                        {!freeDrawMode && image && !result && !usingWebcam && (
                             <div className="absolute bottom-4 flex gap-4 items-center">
                                 <button
                                     onClick={handleUpload}
@@ -188,7 +210,7 @@ function Studio() {
                                     {loading ? "Processing..." : "Convert to Coloring Page"}
                                 </button>
                             </div>
-                        )}
+                        )}                      
                     </div>
                 </main>
             </div>
