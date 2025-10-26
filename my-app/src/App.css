@@ -1,4 +1,32 @@
-@import "tailwindcss";
+/* --- Toast animations --- */
+
+@keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(-10px); }
+    100% { opacity: 1; transform: translateY(0);}
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-10px); }
+}
+
+@keyframes progress {
+    0% { transform: scaleX(1); }
+    100% { transform: scaleX(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.3s ease-in forwards;
+}
+
+.progress {
+  animation: progress linear forwards;
+  transform-origin: left;
+}
 
 
 

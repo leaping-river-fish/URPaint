@@ -1,21 +1,22 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import URPaintLogo from "./components/URPaintLogo";
+import Toast from "./components/Toast";
 import { login } from "./api";
-import "./app.css";
 
 
 function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const navigate = useNavigate();
+    const [toast, setToast] = useState<{ message: string; type?: string } | null>(null);
 
     const handleLogin = async () => {
         try {
             await login(email, password);
             navigate("/hub");
         } catch (err: any) {
-            alert(err.message);
+            setToast({ message: err.message, type: "error" });
         }
     };
 
@@ -124,6 +125,13 @@ function Login() {
                     </div>
                 </div>
             </div>
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type as any}
+                    onClose={() => setToast(null)}
+                />
+            )}
         </div>
     );
 }
