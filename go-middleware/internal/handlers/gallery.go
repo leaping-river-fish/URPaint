@@ -209,16 +209,36 @@ func (h *GalleryHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-	parts := strings.Split(imageURL, "/") 
-	publicIDWithExt := parts[len(parts)-1]
-	publicID := strings.TrimSuffix(publicIDWithExt, ".png")
-
 	cld, err := cloudinary.NewFromURL(h.CloudinaryURL)
-	if err == nil {
-        _, _ = cld.Upload.Destroy(r.Context(), uploader.DestroyParams{
-            PublicID: publicID,
-			ResourceType: "image",
-        })
+    if err == nil {
+        uploadIndex := strings.Index(imageURL, "/upload/")
+        if uploadIndex != -1 {
+
+            publicIDWithVersion := imageURL[uploadIndex+len("/upload/"):]
+
+            slashIndex := strings.Index(publicIDWithVersion, "/")
+            if slashIndex != -1 {
+                publicIDWithVersion = publicIDWithVersion[slashIndex+1:]
+            }
+
+            dotIndex := strings.LastIndex(publicIDWithVersion, ".")
+            if dotIndex != -1 {
+                publicIDWithVersion = publicIDWithVersion[:dotIndex]
+            }
+
+            publicID := publicIDWithVersion
+
+            _, destroyErr := cld.Upload.Destroy(r.Context(), uploader.DestroyParams{
+                PublicID:     publicID,
+                ResourceType: "image",
+            })
+
+            if destroyErr != nil {
+                println("⚠️ Cloudinary delete failed:", destroyErr.Error())
+            } else {
+                println("✅ Cloudinary image deleted:", publicID)
+            }
+        }
     }
 
 	_, err = h.DB.Exec("DELETE FROM gallery WHERE id = $1 AND user_id = $2", drawingID, userID)
