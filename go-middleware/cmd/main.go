@@ -101,6 +101,9 @@ func main() {
 	// Delete Drawing
 	mux.Handle("/gallery/delete", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.DeleteDrawing)))
 
+	// Rearrange Drawing
+	mux.Handle("/gallery/reorder", middleware.JWTAuth([]byte(jwtSecret), http.HandlerFunc(galleryHandler.ReorderGallery)))
+
 	handler := withCORS(mux)
 
 	log.Println("Server running on port 8080")

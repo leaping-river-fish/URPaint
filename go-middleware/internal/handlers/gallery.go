@@ -100,7 +100,7 @@ func (h *GalleryHandler) GetGallery(w http.ResponseWriter, r *http.Request) {
     userID := int(userIDFloat)
 
 	rows, err := h.DB.Query(
-		"SELECT id, image_url, uploaded_at FROM gallery WHERE user_id = $1 ORDER BY uploaded_at DESC",
+		"SELECT id, image_url, uploaded_at FROM gallery WHERE user_id = $1 ORDER BY order_index ASC",
         userID,
 	)
 	if err != nil {
@@ -245,6 +245,49 @@ func (h *GalleryHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
     if err != nil {
         http.Error(w, "Failed to delete drawing: "+err.Error(), http.StatusInternalServerError)
         return
+    }
+
+    w.WriteHeader(http.StatusNoContent)
+}
+
+// Patch Rearrange Image
+func (h *GalleryHandler) ReorderGallery(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPatch {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    claims, ok := r.Context().Value("claims").(jwt.MapClaims)
+    if !ok {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    userIDFloat, ok := claims["id"].(float64)
+    if !ok {
+        http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+        return
+    }
+    userID := int(userIDFloat)
+
+    var input struct {
+        Order []int `json:"order"`
+    }
+
+    if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+        http.Error(w, "Invalid input", http.StatusBadRequest)
+        return
+    }
+
+    for index, id := range input.Order {
+        _, err := h.DB.Exec(
+            "UPDATE gallery SET order_index = $1 WHERE id = $2 AND user_id = $3",
+            index, id, userID,
+        )
+        if err != nil {
+            http.Error(w, "Failed to update order: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
     }
 
     w.WriteHeader(http.StatusNoContent)
