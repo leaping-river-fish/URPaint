@@ -1,7 +1,8 @@
-// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers,
+// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers feature
 import { useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard";
+import Toast from "./components/Toast";
 
 function Studio() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -13,6 +14,7 @@ function Studio() {
     const [webcamImage, setWebcamImage] = useState<string | null>(null);
     const [uploadImage, setUploadImage] = useState<string | null>(null);
     const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type?: string } | null>(null);
 
 
     const drawingBoardRef = useRef<HTMLCanvasElement | null>(null);
@@ -77,6 +79,10 @@ function Studio() {
             if (ctx) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
             const dataUrl = canvas.toDataURL("image/png");
+
+            sessionStorage.removeItem("studio-free-draw");
+            sessionStorage.removeItem("studio-uploaded-draw");
+
             setWebcamImage(dataUrl);
             
             // Stop webcam
@@ -99,10 +105,6 @@ function Studio() {
             formData.append("drawing", blob, "drawing.png");
 
             const token = localStorage.getItem("token");
-            if (!token) {
-                alert("You must be logged in to save drawings.");
-                return;
-            }
 
             try {
                 const res = await fetch("http://localhost:8080/gallery/upload", {
@@ -113,10 +115,13 @@ function Studio() {
 
                 if (!res.ok) throw new Error("Failed to save drawing");
 
-                alert("Drawing saved to your gallery!");
+                sessionStorage.removeItem("studio-free-draw");
+                sessionStorage.removeItem("studio-uploaded-draw");
+
+                setToast({ message: "Drawing saved to your gallery!", type: "success" });
             } catch (err) {
                 console.error(err);
-                alert("Error saving drawing");
+                setToast({ message: "Error saving drawing", type: "error" });
             }
         });
     };
@@ -201,6 +206,10 @@ function Studio() {
                                     accept="image/*"
                                     onChange={(e) => {
                                         if (e.target.files && e.target.files[0]) {
+
+                                            sessionStorage.removeItem("studio-free-draw");
+                                            sessionStorage.removeItem("studio-uploaded-draw");
+
                                             setUploadImage(URL.createObjectURL(e.target.files[0]));
                                         }
                                     }}
@@ -362,6 +371,10 @@ function Studio() {
                                             setResult(null);
                                             setUsingWebcam(false);
                                             setWebcamStream(null);
+                                            
+                                            sessionStorage.removeItem("studio-free-draw");
+                                            sessionStorage.removeItem("studio-uploaded-draw");
+
                                             setShowRestartConfirm(false);
                                         }}
                                         className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
@@ -377,6 +390,14 @@ function Studio() {
                                 </div>
                             </div>
                         </div>
+                    )}
+
+                    {toast && (
+                        <Toast
+                            message={toast.message}
+                            type={toast.type as any}
+                            onClose={() => setToast(null)}
+                        />
                     )}
                 </main>
             </div>

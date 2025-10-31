@@ -1,4 +1,3 @@
-// TO DO: fix animations
 import { useEffect, useState } from "react";
 
 interface ToastProps {

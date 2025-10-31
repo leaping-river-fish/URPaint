@@ -1,6 +1,9 @@
-// TO DO: Fix backgrounds of saved images, update backend with arranged order, why is grid just a column? 
+// TO DO: 
 import { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
+import { rectSortingStrategy } from "@dnd-kit/sortable";
+import { GripVertical, Download, Share2 } from "lucide-react";
+import Toast from "./components/Toast";
 import {
     DndContext,
     closestCenter,
@@ -14,7 +17,6 @@ import {
     arrayMove,
     SortableContext,
     useSortable,
-    verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -27,10 +29,17 @@ interface Drawing {
 
 interface SortableItemProps {
     drawing: Drawing;
-    handleDelete: (id: number) => void;
+    onClick: (d: Drawing) => void;
 }
 
-function SortableItem({ drawing, handleDelete }: SortableItemProps) {
+function SortableItem({ drawing, onClick }: SortableItemProps) {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = /Mobi|Android/i.test(navigator.userAgent);
+        setIsMobile(checkMobile);
+    }, []);
+
     const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
         id: drawing.id,
     });
@@ -38,28 +47,30 @@ function SortableItem({ drawing, handleDelete }: SortableItemProps) {
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
-        touchAction: "none",
+        touchAction: "none" as const,
     };
 
     return (
-        <div
-            ref={setNodeRef}
-            style={style}
+        <div 
+            ref={setNodeRef} 
+            style={style} 
+            {...(!isMobile ? listeners : {})}
             {...attributes}
-            {...listeners}
             className="relative group cursor-grab active:cursor-grabbing"
         >
-            <img
+            <img 
                 src={drawing.url}
                 alt="Drawing"
-                className="w-full h-48 object-cover rounded-2xl shadow-md"
+                className="w-full h-auto rounded-2xl shadow-md cursor-pointer"
+                onClick={() => onClick(drawing)}
             />
-            <button
-                onClick={() => handleDelete(drawing.id)}
-                className="absolute top-2 right-2 bg-red-500 text-white text-sm px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+
+            <div
+                {...(isMobile ? listeners : {})}
+                className="absolute top-2 left-2 bg-white/70 text-slate-700 p-2 rounded-lg opacity-0 group-hover:opacity-100 transition cursor-grab active:cursor-grabbing"
             >
-                Delete
-            </button>
+                <GripVertical size={16} />
+            </div>
         </div>
     );
 }
@@ -68,10 +79,18 @@ function Gallery() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [drawings, setDrawings] = useState<Drawing[]>([]);
+    const [selected, setSelected] = useState<Drawing | null>(null);
+    const [toast, setToast] = useState<{ message: string; type?: string } | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
     const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor)
+        useSensor(PointerSensor, {
+        activationConstraint: {
+            distance: 8,
+        },
+    }),
+    useSensor(KeyboardSensor)
     );
 
     useEffect(() => {
@@ -102,33 +121,50 @@ function Gallery() {
     }, []);
 
     const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this drawing?")) return;
+        try {
+            const token = localStorage.getItem("token");
+            const res = await fetch(`http://localhost:8080/gallery/delete?id=${id}`, {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
 
-        const token = localStorage.getItem("token");
-        const res = await fetch(`http://localhost:8080/gallery/delete?id=${id}`, {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-        });
+            if (!res.ok) throw new Error("Failed to delete drawing");
 
-        if (res.ok) {
-            setDrawings(drawings.filter((d: any) => d.id !== id));
-        } else {
-            alert("Failed to delete drawing");
+            setDrawings((prev) => prev.filter((d) => d.id !== id));
+            setSelected(null);
+            setToast({ message: "Drawing deleted successfully!", type: "success" });
+        } catch (err) {
+            console.error(err);
+            setToast({ message: "Error deleting drawing", type: "error" });
         }
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+        if (!over || active.id === over.id) return;
 
-        if (!over) return;
+        setDrawings((items) => {
+            const oldIndex = items.findIndex((i) => i.id === Number(active.id));
+            const newIndex = items.findIndex((i) => i.id === Number(over.id));
+            const newItems = arrayMove(items, oldIndex, newIndex);
 
-        if (active.id !== over?.id) {
-            setDrawings((items) => {
-                const oldIndex = items.findIndex((i) => i.id === Number(active.id));
-                const newIndex = items.findIndex((i) => i.id === Number(over.id));
-                return arrayMove(items, oldIndex, newIndex);
-            });
-        }
+            const token = localStorage.getItem("token");
+            const newOrder = newItems.map((item) => item.id);
+
+            fetch("http://localhost:8080/gallery/reorder", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ order: newOrder }),
+            }).catch((err) => console.error("Failed to update order:", err));
+
+            return newItems;
+        });
     };
     
     if (loading) {
@@ -173,12 +209,12 @@ function Gallery() {
                 >
                     <SortableContext
                         items={drawings.map(d => d.id)}
-                        strategy={verticalListSortingStrategy}
+                        strategy={rectSortingStrategy}
                     >
-                        <div className="flex-1 flex flex-col items-center justify-center text-center p-6 lg:ml-52">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-6 lg:ml-52">
                             {drawings?.length > 0 ? (
                                 drawings.map(d => (
-                                    <SortableItem key={d.id} drawing={d} handleDelete={handleDelete} />
+                                    <SortableItem key={d.id} drawing={d} onClick={setSelected} />
                                 ))
                             ) : (
                                 <div className="text-3xl font-bold text-slate-700">
@@ -188,6 +224,142 @@ function Gallery() {
                         </div>
                     </SortableContext>
                 </DndContext>
+
+                {selected && (
+                    <div
+                        className="fixed inset-0 flex justify-center items-center bg-black/50 z-50"
+                        onClick={() => setSelected(null)}
+                    >
+                        <div
+                            className="relative bg-white rounded-2xl shadow-2xl p-4 max-w-4xl w-[90%]"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Action Buttons */}
+                            <div className="absolute top-4 right-4 flex gap-3">
+                                <div className="flex gap-3">
+                                    <div className="text-xs text-slate-500 font-medium text-right mt-1">
+                                        Tip: Download and print from your device for best results.
+                                    </div>
+                                    {/* Share Button */}
+                                    <button
+                                        onClick={async () => {
+                                            if (navigator.share) {
+                                            try {
+                                                await navigator.share({
+                                                title: selected.title || "My Drawing",
+                                                text: "Check out my artwork!",
+                                                url: selected.url,
+                                                });
+                                            } catch (err) {
+                                                console.error("Share failed:", err);
+                                            }
+                                            } else {
+                                            navigator.clipboard.writeText(selected.url);
+                                                setToast({ message: "Link copied to clipboard!", type: "success" });
+                                            }
+                                        }}
+                                        className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-md transition"
+                                        title="Share"
+                                    >
+                                        <Share2 size={18} />
+                                    </button>
+
+                                    {/* Download Button */}
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                const response = await fetch(selected.url);
+                                                const blob = await response.blob();
+
+                                                const blobUrl = URL.createObjectURL(blob);
+                                                const link = document.createElement("a");
+                                                link.href = blobUrl;
+                                                link.download = (selected.title || "drawing") + ".png";
+                                                link.click();
+
+                                                URL.revokeObjectURL(blobUrl);
+                                            } catch (err) {
+                                                console.error("Download failed:", err);
+                                                setToast({ message: "Failed to download image. Please try again.", type: "error" })
+                                            }
+                                        }}
+                                        className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-md transition"
+                                        title="Download"
+                                    >
+                                        <Download size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Image */}
+                            <img
+                                src={selected.url}
+                                alt={selected.title || "Drawing"}
+                                className="max-h-[75vh] w-auto mx-auto rounded-lg shadow-md"
+                            />
+
+                            {/* Footer Info */}
+                            <div className="flex justify-between items-center mt-4">
+                                <span className="text-slate-700 font-medium text-lg">
+                                    {selected.title || "Untitled"}
+                                </span>
+                                <button
+                                    onClick={() => {
+                                        setDeleteTarget(selected.id);
+                                        setShowDeleteConfirm(true);
+                                    }}
+                                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showDeleteConfirm && (
+                    <div
+                        className="fixed inset-0 flex justify-center items-center bg-black/50 z-50"
+                        onClick={() => setShowDeleteConfirm(false)}
+                    >
+                        <div
+                            className="bg-white p-6 rounded-2xl shadow-2xl text-center w-[90%] max-w-sm"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <h2 className="text-xl font-bold text-slate-800 mb-4">Delete Drawing?</h2>
+                            <p className="text-slate-600 mb-6">
+                                Are you sure you want to delete this drawing? This action cannot be undone.
+                            </p>
+
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="px-4 py-2 rounded-lg bg-slate-300 hover:bg-slate-400 text-slate-800 font-medium"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        if (deleteTarget) handleDelete(deleteTarget);
+                                        setShowDeleteConfirm(false);
+                                    }}
+                                    className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium"          
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type as any}
+                        onClose={() => setToast(null)}
+                    />
+                )}
             </div>
         </div>
     )

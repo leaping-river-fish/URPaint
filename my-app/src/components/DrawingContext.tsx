@@ -22,7 +22,7 @@ export const DrawingProvider = ({ children }: { children: ReactNode }) => {
     const saveCanvasToStorage = (canvas: HTMLCanvasElement) => {
     try {
         const dataURL = canvas.toDataURL("image/png");
-            localStorage.setItem("drawingBoard", dataURL);
+            sessionStorage.setItem("drawingBoard", dataURL);
         } catch (err) {
             console.error("Error saving canvas to storage", err);
         }
@@ -56,7 +56,7 @@ export const DrawingProvider = ({ children }: { children: ReactNode }) => {
         requestAnimationFrame(() => {
             try {
                 const dataURL = canvas.toDataURL("image/png");
-                localStorage.setItem("drawingBoard", dataURL);
+                sessionStorage.setItem("drawingBoard", dataURL);
             } catch (err) {
                 console.error("Error saving canvas to storage", err);
             }
@@ -79,7 +79,7 @@ export const DrawingProvider = ({ children }: { children: ReactNode }) => {
         requestAnimationFrame(() => {
             try {
                 const dataURL = canvas.toDataURL("image/png");
-                localStorage.setItem("drawingBoard", dataURL);
+                sessionStorage.setItem("drawingBoard", dataURL);
             } catch (err) {
                 console.error("Error saving canvas to storage", err);
             }

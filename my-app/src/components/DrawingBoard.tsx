@@ -67,14 +67,14 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
         const saveCanvasToStorage = (canvas: HTMLCanvasElement) => {
             try {
                 const dataURL = canvas.toDataURL("image/png");
-                localStorage.setItem(STORAGE_KEY, dataURL);
+                sessionStorage.setItem(STORAGE_KEY, dataURL);
             } catch (err) {
                 console.error("Error saving canvas to storage", err);
             }
         };
 
         const loadCanvasFromStorage = (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = sessionStorage.getItem(STORAGE_KEY);
             if (!saved) return false;
 
             const img = new Image();
