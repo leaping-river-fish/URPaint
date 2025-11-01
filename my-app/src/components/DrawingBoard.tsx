@@ -1,14 +1,22 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { Undo2, Redo2, Brush, Move, X, Plus, Minus } from "lucide-react";
+import { Undo2, Redo2, Brush, Move, X, Plus, Minus, Eraser } from "lucide-react";
 import { DrawingProvider, useDrawing } from "./DrawingContext";
 import useIsMobile from "./useIsMobile";
 
-const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
-    ({ baseImage }, ref) => {
+
+const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasing: boolean }>(
+    ({ baseImage, isErasing }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement | null>(null);
         const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
         const [drawing, setDrawing] = useState(false);
         const [imageLoaded, setImageLoaded] = useState(false);
+        const [cursorPos, setCursorPos] = useState<{
+            x: number;
+            y: number;
+            clientX: number;
+            clientY: number;
+        } | null>(null);
+
 
         const { color, lineWidth, saveState } = useDrawing();
 
@@ -98,6 +106,13 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
             };
         };
 
+        const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+            const { x, y } = getCanvasCoords(e);
+            setCursorPos({ x, y, clientX: e.clientX, clientY: e.clientY });
+
+            if (drawing) draw(e);
+        };
+
         const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
             if (!ctxRef.current || !imageLoaded) return;
             const { x, y } = getCanvasCoords(e);
@@ -109,6 +124,15 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
         const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
             if (!drawing || !ctxRef.current) return;
             const { x, y } = getCanvasCoords(e);
+
+            if (isErasing) {
+                ctxRef.current.globalCompositeOperation = "source-over";
+                ctxRef.current.strokeStyle = "#ffffff"; 
+            } else {
+                ctxRef.current.globalCompositeOperation = "source-over";
+                ctxRef.current.strokeStyle = color;
+            }
+
             ctxRef.current.lineTo(x, y);
             ctxRef.current.stroke();
         };
@@ -116,6 +140,7 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
         const stopDrawing = () => {
             if (!drawing || !ctxRef.current || !canvasRef.current) return;
             ctxRef.current.closePath();
+            ctxRef.current.globalCompositeOperation = "source-over";
             setDrawing(false);
             saveState(canvasRef.current);
             saveCanvasToStorage(canvasRef.current);
@@ -124,19 +149,37 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string }>(
         useImperativeHandle(ref, () => canvasRef.current!);
 
         return (
-            <canvas
-                ref={canvasRef}
-                onMouseDown={startDrawing}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                className="w-full h-full cursor-crosshair rounded-2xl"
-            />
+            <>
+                <canvas
+                    ref={canvasRef}
+                    onMouseDown={startDrawing}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    className={`w-full h-full rounded-2xl ${isErasing ? "cursor-none" : "cursor-crosshair"}`}
+                />
+
+                {isErasing && cursorPos && canvasRef.current && (
+                    <div 
+                        style={{
+                            position: "fixed",
+                            left: cursorPos.clientX - lineWidth / 2,
+                            top: cursorPos.clientY - lineWidth / 2,
+                            width: lineWidth,
+                            height: lineWidth,
+                            borderRadius: "50%",
+                            border: "2px solid rgba(0,0,0,0.4)",
+                            pointerEvents: "none",
+                            zIndex: 9999,
+                        }}  
+                    />
+                )}
+            </>
         );
     }
 );
 
-function DrawingToolbar() {
+function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIsErasing: React.Dispatch<React.SetStateAction<boolean>> }) {
     const { color, setColor, lineWidth, setLineWidth, undo, redo } = useDrawing();
     const [position, setPosition] = useState({ x: 250, y: 500 });
     const [dragging, setDragging] = useState(false);
@@ -221,6 +264,18 @@ function DrawingToolbar() {
                             />
                         </label>
 
+                        <button
+                            onClick={() => setIsErasing(!isErasing)}
+                            className={`p-2 rounded-lg transition self-start ${
+                                isErasing
+                                ? "bg-sky-500 text-white shadow-md"
+                                : "bg-sky-100 text-slate-700 hover:bg-sky-200"
+                            }`}
+                            title="Eraser"
+                        >
+                            <Eraser className="w-5 h-5" />
+                        </button>
+
                         <div className="flex items-center gap-1 justify-between">
                             <span>Brush Size</span>
                             <button
@@ -304,6 +359,16 @@ function DrawingToolbar() {
                 />
             </label>
 
+            <button
+                onClick={() => setIsErasing(!isErasing)}
+                className={`p-2 rounded-lg transition ${
+                    isErasing ? "bg-red-200 text-red-600" : "bg-sky-100 hover:bg-sky-200 text-slate-700"
+                }`}
+                title={isErasing ? "Switch to brush" : "Eraser mode"}
+            >
+                <Eraser className="w-5 h-5" />
+            </button>
+
             <div className="flex items-center gap-1 justify-between">
                 <button
                     onClick={() => setLineWidth((w) => Math.max(1, w - 1))}
@@ -357,11 +422,13 @@ function DrawingToolbar() {
 
 export default forwardRef<HTMLCanvasElement, { baseImage: string }>(
     function DrawingBoard({ baseImage }, ref) {
+        const [isErasing, setIsErasing] = useState(false);
+
         return (
             <DrawingProvider>
                 <div className="flex flex-col items-center justify-center w-full h-full relative">
-                    <DrawingCanvas baseImage={baseImage} ref={ref} />
-                    <DrawingToolbar />
+                    <DrawingCanvas baseImage={baseImage} ref={ref} isErasing={isErasing} />
+                    <DrawingToolbar isErasing={isErasing} setIsErasing={setIsErasing} />
                 </div>
             </DrawingProvider>
         );

@@ -1,4 +1,4 @@
-// TO DO: 
+// TO DO: Add edit feature to images
 import { useState, useEffect } from "react";
 import Sidebar from "./components/Sidebar";
 import { rectSortingStrategy } from "@dnd-kit/sortable";
@@ -211,13 +211,13 @@ function Gallery() {
                         items={drawings.map(d => d.id)}
                         strategy={rectSortingStrategy}
                     >
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-6 lg:ml-52">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-6 lg:ml-52 min-h-[60vh]">
                             {drawings?.length > 0 ? (
                                 drawings.map(d => (
                                     <SortableItem key={d.id} drawing={d} onClick={setSelected} />
                                 ))
                             ) : (
-                                <div className="text-3xl font-bold text-slate-700">
+                                <div className="flex flex-col items-center justify-center w-full col-span-full text-center text-2xl sm:text-3xl font-bold text-slate-700 py-20">
                                     Your gallery is empty… 🌟 Start creating some amazing drawings!
                                 </div>
                             )}
