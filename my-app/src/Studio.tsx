@@ -1,4 +1,4 @@
-// TO DO: Fix undo feature with images action not being saved when exiting, add more toolbar features, add layers feature
+// TO DO: Add bucket tool, add lasso tool, add layers feature
 import { useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard";

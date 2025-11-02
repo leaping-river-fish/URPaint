@@ -1,11 +1,11 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
-import { Undo2, Redo2, Brush, Move, X, Plus, Minus, Eraser } from "lucide-react";
+import { Undo2, Redo2, Brush, Move, X, Plus, Minus, Eraser, PaintBucket } from "lucide-react";
 import { DrawingProvider, useDrawing } from "./DrawingContext";
 import useIsMobile from "./useIsMobile";
 
 
-const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasing: boolean }>(
-    ({ baseImage, isErasing }, ref) => {
+const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasing: boolean; isFilling: boolean }>(
+    ({ baseImage, isErasing, isFilling }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement | null>(null);
         const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
         const [drawing, setDrawing] = useState(false);
@@ -106,6 +106,77 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasi
             };
         };
 
+        const hexToRgb = (hex: string): [number, number, number] => {
+            const match = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+            if (!match) return [0, 0, 0];
+            return [
+                parseInt(match[1], 16),
+                parseInt(match[2], 16),
+                parseInt(match[3], 16),
+            ];
+        };
+
+        const floodFill = (ctx: CanvasRenderingContext2D, x: number, y: number, fillColor: string) => {
+            const canvas = ctx.canvas;
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const targetColor = getPixelColor(imageData, x, y);
+            const replacementColor = hexToRgb(fillColor);
+
+            if (colorsMatch(targetColor, replacementColor)) return;
+
+            const stack = [{ x, y }];
+            while (stack.length) {
+                const { x, y } = stack.pop()!;
+                let currentY = y;
+                while (currentY >= 0 && colorsMatch(getPixelColor(imageData, x, currentY), targetColor)) currentY--;
+                currentY++;
+                let reachLeft = false;
+                let reachRight = false;
+                while (currentY < canvas.height && colorsMatch(getPixelColor(imageData, x, currentY), targetColor)) {
+                    setPixelColor(imageData, x, currentY, replacementColor);
+                    if (x > 0) {
+                        if (colorsMatch(getPixelColor(imageData, x - 1, currentY), targetColor)) {
+                            if (!reachLeft) {
+                                stack.push({ x: x - 1, y: currentY });
+                                reachLeft = true;
+                            }
+                        } else reachLeft = false;
+                    }
+                    if (x < canvas.width - 1) {
+                        if (colorsMatch(getPixelColor(imageData, x + 1, currentY), targetColor)) {
+                            if (!reachRight) {
+                                stack.push({ x: x + 1, y: currentY });
+                                reachRight = true;
+                            }
+                        } else reachRight = false;
+                    }
+                    currentY++;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+        };
+
+        const getPixelColor = (imageData: ImageData, x: number, y: number): [number, number, number] => {
+            const index = (y * imageData.width + x) * 4;
+            return [
+                imageData.data[index],
+                imageData.data[index + 1],
+                imageData.data[index + 2],
+            ];
+        };
+
+        const setPixelColor = (imageData: ImageData, x: number, y: number, color: [number, number, number]) => {
+            const index = (y * imageData.width + x) * 4;
+            imageData.data[index] = color[0];
+            imageData.data[index + 1] = color[1];
+            imageData.data[index + 2] = color[2];
+            imageData.data[index + 3] = 255;
+        };
+
+        const colorsMatch = (a: [number, number, number], b: [number, number, number]): boolean => {
+            return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+        };
+
         const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
             const { x, y } = getCanvasCoords(e);
             setCursorPos({ x, y, clientX: e.clientX, clientY: e.clientY });
@@ -116,6 +187,14 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasi
         const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
             if (!ctxRef.current || !imageLoaded) return;
             const { x, y } = getCanvasCoords(e);
+
+            if (isFilling) {
+                floodFill(ctxRef.current, Math.floor(x), Math.floor(y), color);
+                saveState(ctxRef.current.canvas);
+                saveCanvasToStorage(ctxRef.current.canvas);
+                return;
+            }
+
             ctxRef.current.beginPath();
             ctxRef.current.moveTo(x, y);
             setDrawing(true); 
@@ -179,7 +258,7 @@ const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasi
     }
 );
 
-function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIsErasing: React.Dispatch<React.SetStateAction<boolean>> }) {
+function DrawingToolbar({ isErasing, setIsErasing, isFilling, setIsFilling }: { isErasing: boolean; setIsErasing: React.Dispatch<React.SetStateAction<boolean>>; isFilling: boolean; setIsFilling: React.Dispatch<React.SetStateAction<boolean>>; }) {
     const { color, setColor, lineWidth, setLineWidth, undo, redo } = useDrawing();
     const [position, setPosition] = useState({ x: 250, y: 500 });
     const [dragging, setDragging] = useState(false);
@@ -261,11 +340,25 @@ function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIs
                                 type="color"
                                 value={color}
                                 onChange={(e) => setColor(e.target.value)}
+                                className="appearance-none w-0 h-0 absolute opacity-0"
+                            />
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                                    input.click();
+                                }}
+                                className="w-8 h-8 rounded-full border-2 border-slate-400"
+                                style={{ backgroundColor: color }}
+                                title="Choose color"
                             />
                         </label>
 
                         <button
-                            onClick={() => setIsErasing(!isErasing)}
+                            onClick={() => {
+                                setIsErasing(!isErasing)
+                                setIsFilling(false);
+                            }}
                             className={`p-2 rounded-lg transition self-start ${
                                 isErasing
                                 ? "bg-sky-500 text-white shadow-md"
@@ -274,6 +367,21 @@ function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIs
                             title="Eraser"
                         >
                             <Eraser className="w-5 h-5" />
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setIsFilling(!isFilling);
+                                setIsErasing(false);
+                            }}
+                            className={`p-2 rounded-lg transition self-start ${
+                                isFilling
+                                ? "bg-yellow-500 text-white shadow-md"
+                                : "bg-sky-100 text-slate-700 hover:bg-sky-200"
+                            }`}
+                            title="Fill tool"
+                        >
+                            <PaintBucket className="w-5 h-5" />
                         </button>
 
                         <div className="flex items-center gap-1 justify-between">
@@ -350,23 +458,51 @@ function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIs
                 <Move className="w-5 h-5" />
             </button>
 
-            <label className="flex items-center gap-2">
-                <Brush className="w-5 h-5 text-slate-600" />
-                <input 
+            <label className="relative">
+                <input
                     type="color"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
+                    className="appearance-none w-0 h-0 absolute opacity-0"
+                />
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                        input.click();
+                    }}
+                    className="w-8 h-8 rounded-full border-2 border-slate-400"
+                    style={{ backgroundColor: color }}
+                    title="Choose color"
                 />
             </label>
 
             <button
-                onClick={() => setIsErasing(!isErasing)}
+                onClick={() => {
+                    setIsErasing(!isErasing)
+                    setIsFilling(false);
+                }}
                 className={`p-2 rounded-lg transition ${
                     isErasing ? "bg-red-200 text-red-600" : "bg-sky-100 hover:bg-sky-200 text-slate-700"
                 }`}
                 title={isErasing ? "Switch to brush" : "Eraser mode"}
             >
                 <Eraser className="w-5 h-5" />
+            </button>
+
+            <button
+                onClick={() => {
+                    setIsFilling(!isFilling);
+                    setIsErasing(false);
+                }}
+                className={`p-2 rounded-lg transition ${
+                    isFilling
+                    ? "bg-yellow-200 text-yellow-700"
+                    : "bg-sky-100 hover:bg-sky-200 text-slate-700"
+                }`}
+                title={isFilling ? "Switch to brush" : "Fill mode"}
+            >
+                <PaintBucket className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-1 justify-between">
@@ -423,12 +559,13 @@ function DrawingToolbar({ isErasing, setIsErasing }: { isErasing: boolean; setIs
 export default forwardRef<HTMLCanvasElement, { baseImage: string }>(
     function DrawingBoard({ baseImage }, ref) {
         const [isErasing, setIsErasing] = useState(false);
+        const [isFilling, setIsFilling] = useState(false);
 
         return (
             <DrawingProvider>
                 <div className="flex flex-col items-center justify-center w-full h-full relative">
-                    <DrawingCanvas baseImage={baseImage} ref={ref} isErasing={isErasing} />
-                    <DrawingToolbar isErasing={isErasing} setIsErasing={setIsErasing} />
+                    <DrawingCanvas baseImage={baseImage} ref={ref} isErasing={isErasing} isFilling={isFilling} />
+                    <DrawingToolbar isErasing={isErasing} setIsErasing={setIsErasing} isFilling={isFilling} setIsFilling={setIsFilling} />
                 </div>
             </DrawingProvider>
         );
