@@ -1,7 +1,7 @@
-// TO DO: Add bucket tool, add lasso tool, add layers feature
+// TO DO: fix lasso tool (fix up logic regarding saving image), add layers feature
 import { useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
-import DrawingBoard from "./components/DrawingBoard";
+import DrawingBoard from "./components/DrawingBoard/DrawingBoard";
 import Toast from "./components/Toast";
 
 function Studio() {
@@ -94,36 +94,65 @@ function Studio() {
         };
     }
 
-    const handleSaveToGallery = () => {
+    const handleSaveToGallery = async () => {
         const canvas = drawingBoardRef.current;
-        if(!canvas) return;
+        if (!canvas) return;
 
-        canvas.toBlob(async (blob) => {
-            if (!blob) return;
+        try {
+            const exportWithBackground = (canvas: HTMLCanvasElement) => {
+                const tempCanvas = document.createElement("canvas");
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+
+                const ctx = tempCanvas.getContext("2d");
+                if (!ctx) throw new Error("Failed to get canvas context");
+
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                ctx.drawImage(canvas, 0, 0);
+
+                return tempCanvas;
+            };
+
+            const galleryCanvas = exportWithBackground(canvas);
+
+            const galleryBlob: Blob = await new Promise((resolve, reject) => {
+                galleryCanvas.toBlob((blob: Blob | null) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error("Failed to create gallery blob"));
+                }, "image/png");
+            });
+
+            const editBlob: Blob = await new Promise((resolve, reject) => {
+                canvas.toBlob((blob: Blob | null) => {
+                    if (blob) resolve(blob);
+                    else reject(new Error("Failed to create edit blob"));
+                }, "image/png");
+            });
 
             const formData = new FormData();
-            formData.append("drawing", blob, "drawing.png");
+            formData.append("galleryImage", galleryBlob, "gallery.png");
+            formData.append("editImage", editBlob, "edit.png");
 
             const token = localStorage.getItem("token");
 
-            try {
-                const res = await fetch("http://localhost:8080/gallery/upload", {
-                    method: "POST",
-                    body: formData,
-                    headers: { Authorization: `Bearer ${token}` },
-                });
+            const res = await fetch("http://localhost:8080/gallery/upload", {
+                method: "POST",
+                body: formData,
+                headers: { Authorization: `Bearer ${token}` },
+            });
 
-                if (!res.ok) throw new Error("Failed to save drawing");
+            if (!res.ok) throw new Error("Failed to save drawing");
 
-                sessionStorage.removeItem("studio-free-draw");
-                sessionStorage.removeItem("studio-uploaded-draw");
+            sessionStorage.removeItem("studio-free-draw");
+            sessionStorage.removeItem("studio-uploaded-draw");
 
-                setToast({ message: "Drawing saved to your gallery!", type: "success" });
-            } catch (err) {
-                console.error(err);
-                setToast({ message: "Error saving drawing", type: "error" });
-            }
-        });
+            setToast({ message: "Drawing saved to your gallery!", type: "success" });
+        } catch (err) {
+            console.error(err);
+            setToast({ message: "Error saving drawing", type: "error" });
+        }
     };
 
     return (
