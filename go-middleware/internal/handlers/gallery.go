@@ -6,6 +6,7 @@ import (
     "net/http"
     "strconv"
 	"strings"
+    "fmt"
 
     "github.com/cloudinary/cloudinary-go/v2"
     "github.com/cloudinary/cloudinary-go/v2/api/uploader"
@@ -38,12 +39,11 @@ func (h *GalleryHandler) UploadDrawing(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := int(userIDFloat)
 
-	file, _, err := r.FormFile("drawing")
+    err := r.ParseMultipartForm(10 << 20) // 10MB
 	if err != nil {
-		http.Error(w, "Failed to read file: "+err.Error(), http.StatusBadRequest)
-        return
+		http.Error(w, "Failed to parse form: "+err.Error(), http.StatusBadRequest)
+		return
 	}
-	defer file.Close()
 
 	cld, err := cloudinary.NewFromURL(h.CloudinaryURL)
 	if err != nil {
@@ -53,29 +53,54 @@ func (h *GalleryHandler) UploadDrawing(w http.ResponseWriter, r *http.Request) {
 
 	folderName := "URPaint_Gallery/user_" + strconv.Itoa(userID)
 
-	uploadParams := uploader.UploadParams{
-		Folder:       folderName, //change?
-        ResourceType: "image",
+    uploadFile := func(fieldName string) (string, error) {
+        file, _, err := r.FormFile(fieldName)
+        if err != nil {
+			if err == http.ErrMissingFile {
+				return "", nil
+			}
+			return "", fmt.Errorf("failed to read %s: %w", fieldName, err)
+		}
+        defer file.Close()
+
+        uploadParams := uploader.UploadParams{
+            Folder:       folderName,
+            ResourceType: "image",
+        }
+
+        result, err := cld.Upload.Upload(r.Context(), file, uploadParams)
+		if err != nil {
+			return "", fmt.Errorf("upload error (%s): %w", fieldName, err)
+		}
+
+		return result.SecureURL, nil
+    }
+
+    galleryURL, err := uploadFile("galleryImage")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	uploadResult, err := cld.Upload.Upload(r.Context(), file, uploadParams)
+    editURL, err := uploadFile("editImage")
 	if err != nil {
-        http.Error(w, "Upload error: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	_, err = h.DB.Exec(
-		`INSERT INTO gallery (user_id, image_url) VALUES ($1, $2)`,
-        userID, uploadResult.SecureURL,
+    _, err = h.DB.Exec(
+		`INSERT INTO gallery (user_id, image_url, edit_url) VALUES ($1, $2, $3)`,
+		userID, galleryURL, editURL,
 	)
 	if err != nil {
-        http.Error(w, "Failed to save image reference: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
+		http.Error(w, "Failed to save image reference: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
-		"imageUrl": uploadResult.SecureURL,
+		"galleryUrl": galleryURL,
+		"editUrl":    editURL,
 	})
 }
 
@@ -202,20 +227,30 @@ func (h *GalleryHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
     }
     drawingID, _ := strconv.Atoi(idParam)
 
-	var imageURL string
-	err := h.DB.QueryRow("SELECT image_url FROM gallery WHERE id = $1 AND user_id = $2", drawingID, userID).Scan(&imageURL)
-	if err != nil {
+	var imageURL, editURL string
+	err := h.DB.QueryRow(
+        "SELECT image_url, edit_url FROM gallery WHERE id = $1 AND user_id = $2",
+        drawingID, userID,
+    ).Scan(&imageURL, &editURL)
+    if err != nil {
         http.Error(w, "Drawing not found", http.StatusNotFound)
         return
     }
 
 	cld, err := cloudinary.NewFromURL(h.CloudinaryURL)
     if err == nil {
-        uploadIndex := strings.Index(imageURL, "/upload/")
-        if uploadIndex != -1 {
+        urls := []string{imageURL, editURL}
+        for _, url := range urls {
+            if url == "" {
+                continue
+            }
 
-            publicIDWithVersion := imageURL[uploadIndex+len("/upload/"):]
+            uploadIndex := strings.Index(url, "/upload/")
+            if uploadIndex == -1 {
+                continue
+            }
 
+            publicIDWithVersion := url[uploadIndex+len("/upload/"):]
             slashIndex := strings.Index(publicIDWithVersion, "/")
             if slashIndex != -1 {
                 publicIDWithVersion = publicIDWithVersion[slashIndex+1:]
@@ -226,17 +261,14 @@ func (h *GalleryHandler) DeleteDrawing(w http.ResponseWriter, r *http.Request) {
                 publicIDWithVersion = publicIDWithVersion[:dotIndex]
             }
 
-            publicID := publicIDWithVersion
-
             _, destroyErr := cld.Upload.Destroy(r.Context(), uploader.DestroyParams{
-                PublicID:     publicID,
+                PublicID:     publicIDWithVersion,
                 ResourceType: "image",
             })
-
             if destroyErr != nil {
                 println("⚠️ Cloudinary delete failed:", destroyErr.Error())
             } else {
-                println("✅ Cloudinary image deleted:", publicID)
+                println("✅ Cloudinary image deleted:", publicIDWithVersion)
             }
         }
     }
