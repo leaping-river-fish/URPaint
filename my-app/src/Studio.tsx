@@ -1,5 +1,5 @@
 // TO DO: fix lasso tool (WTF IS HAPPENING), add layers feature
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard/DrawingBoard";
 import Toast from "./components/Toast";
@@ -15,9 +15,28 @@ function Studio() {
     const [uploadImage, setUploadImage] = useState<string | null>(null);
     const [showRestartConfirm, setShowRestartConfirm] = useState(false);
     const [toast, setToast] = useState<{ message: string; type?: string } | null>(null);
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editingUrl, setEditingUrl] = useState<string | null>(null);
 
+    const isEditMode = editingId !== null && editingUrl !== null;
 
     const drawingBoardRef = useRef<HTMLCanvasElement | null>(null);
+    const editBoardRef = useRef<HTMLCanvasElement | null>(null);
+
+    useEffect(() => {
+        const storedId = sessionStorage.getItem("studio-edit-id");
+        const storedUrl = sessionStorage.getItem("studio-edit-url");
+
+        if (storedId && storedUrl) {
+            setEditingId(Number(storedId));
+            setEditingUrl(storedUrl);
+            setResult(storedUrl);
+            setFreeDrawMode(false);
+            setUsingWebcam(false);
+            setWebcamImage(null);
+            setUploadImage(null);
+        }
+    }, []);
 
     const handleUpload = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -95,7 +114,7 @@ function Studio() {
     }
 
     const handleSaveToGallery = async () => {
-        const canvas = drawingBoardRef.current;
+        const canvas = isEditMode ? editBoardRef.current : drawingBoardRef.current;
         if (!canvas) return;
 
         try {
@@ -131,11 +150,34 @@ function Studio() {
                 }, "image/png");
             });
 
+            const token = localStorage.getItem("token");
+
+            if (editingId) {
+                const formData = new FormData();
+                formData.append("editImage", editBlob,"edit.png");
+                formData.append("galleryImage", galleryBlob, "gallery.png");
+
+                const res = await fetch(`http://localhost:8080/gallery/update?id=${editingId}`, {
+                    method: "PUT",
+                    body: formData,
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (!res.ok) throw new Error("Failed to update drawing");
+
+                sessionStorage.removeItem("studio-edit-id");
+                sessionStorage.removeItem("studio-edit-url");
+
+                setToast({ message: "Drawing updated successfully!", type: "success" });
+                window.location.href = "/gallery";
+                return;
+            }
+
             const formData = new FormData();
             formData.append("galleryImage", galleryBlob, "gallery.png");
             formData.append("editImage", editBlob, "edit.png");
-
-            const token = localStorage.getItem("token");
 
             const res = await fetch("http://localhost:8080/gallery/upload", {
                 method: "POST",
@@ -195,32 +237,32 @@ function Studio() {
                     </p>
 
                     {/* Free Draw Toggle */}
-                    <div className="mt-4">
-                        <button
-                            onClick={() => {
-                                setFreeDrawMode(!freeDrawMode);
-                                setResult(null);
-                                setUsingWebcam(false);
-                                setWebcamImage(null);
-                                setUploadImage(null);
-                            }}
-                            className={`px-4 py-2 rounded-lg text-white font-medium transition ${
-                                freeDrawMode
-                                    ? "bg-pink-500 hover:bg-pink-600"
-                                    : "bg-sky-500 hover:bg-sky-600"
-                            }`}
-                        >
-                            {freeDrawMode ? "Exit Free Draw Mode" : "Start Free Draw Mode"}
-                        </button>
-                    </div>
+                    {!isEditMode && (
+                        <div className="mt-4">
+                            <button
+                                onClick={() => {
+                                    setFreeDrawMode(!freeDrawMode);
+                                    setResult(null);
+                                    setUsingWebcam(false);
+                                    setWebcamImage(null);
+                                    setUploadImage(null);
+                                }}
+                                className={`px-4 py-2 rounded-lg text-white font-medium transition ${
+                                    freeDrawMode ? "bg-pink-500 hover:bg-pink-600" : "bg-sky-500 hover:bg-sky-600"
+                                }`}
+                            >
+                                {freeDrawMode ? "Exit Free Draw Mode" : "Start Free Draw Mode"}
+                            </button>
+                        </div>
+                    )}
 
                     {/* Workspace Window */}
                     <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-4xl h-[600px] flex items-center justify-center mt-6">
                         {/* Free Draw Mode */}
-                        {freeDrawMode && <DrawingBoard baseImage={""} ref={drawingBoardRef} />}
+                        {freeDrawMode && !isEditMode && <DrawingBoard baseImage={""} ref={drawingBoardRef} />}
                         
                         {/* Initial */}
-                        {!uploadImage && !webcamImage && !usingWebcam && !freeDrawMode && (
+                        {!uploadImage && !webcamImage && !usingWebcam && !freeDrawMode && !isEditMode && (
                             <div className="absolute bottom-4 flex gap-4">
                                 <button
                                     onClick={startWebcam}
@@ -259,7 +301,7 @@ function Studio() {
                         )}
 
                         {/* Captured webcam image */}
-                        {webcamImage && !freeDrawMode && (
+                        {webcamImage && !freeDrawMode && !isEditMode && (
                             <img
                                 src={webcamImage}
                                 alt="Captured"
@@ -268,7 +310,7 @@ function Studio() {
                         )}
 
                         {/* Uploaded image */}
-                        {uploadImage && !freeDrawMode && (
+                        {uploadImage && !freeDrawMode && !isEditMode && (
                             <img
                                 src={uploadImage}
                                 alt="Uploaded"
@@ -277,7 +319,15 @@ function Studio() {
                         )}
 
                         {/* Converted coloring page */}
-                        {!freeDrawMode && result && <DrawingBoard baseImage={result} ref={drawingBoardRef} />}
+                        {!freeDrawMode && (
+                            <>
+                                {isEditMode ? (
+                                    <DrawingBoard baseImage={editingUrl!} ref={editBoardRef} />
+                                ) : result ? (
+                                    <DrawingBoard baseImage={result} ref={drawingBoardRef} />
+                                ) : null}
+                            </>
+                        )}
 
                         {/* Webcam buttons */}
                         {usingWebcam && !webcamImage && (
@@ -368,10 +418,18 @@ function Studio() {
                         <div className="flex justify-between max-w-4xl w-full mt-4 mx-auto">
                             {/* Restart Button */}
                             <button
-                                onClick={() => setShowRestartConfirm(true)}
+                                onClick={() => {
+                                    if (isEditMode) {
+                                        sessionStorage.removeItem("studio-edit-id");
+                                        sessionStorage.removeItem("studio-edit-url");
+                                        window.location.href = "/gallery";
+                                    } else {
+                                        setShowRestartConfirm(true);
+                                    }
+                                }}
                                 className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600"
                             >
-                                Restart
+                                {isEditMode ? "Cancel" : "Restart"}
                             </button>
 
                             {/* Save Button */}

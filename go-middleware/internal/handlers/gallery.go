@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
     "encoding/json"
+    "mime/multipart"
     "net/http"
     "strconv"
 	"strings"
@@ -125,7 +126,7 @@ func (h *GalleryHandler) GetGallery(w http.ResponseWriter, r *http.Request) {
     userID := int(userIDFloat)
 
 	rows, err := h.DB.Query(
-		"SELECT id, image_url, uploaded_at FROM gallery WHERE user_id = $1 ORDER BY order_index ASC",
+		"SELECT id, image_url, edit_url, title, uploaded_at FROM gallery WHERE user_id = $1 ORDER BY order_index ASC",
         userID,
 	)
 	if err != nil {
@@ -136,18 +137,24 @@ func (h *GalleryHandler) GetGallery(w http.ResponseWriter, r *http.Request) {
 
 	var gallery []map[string]interface{}
 	for rows.Next() {
-		var id int
-        var url string
+        var id int
+        var imageUrl sql.NullString
+        var editUrl sql.NullString
         var uploadedAt string
-		if err := rows.Scan(&id, &url, &uploadedAt); err != nil {
+        var title sql.NullString
+
+        if err := rows.Scan(&id, &imageUrl, &editUrl, &title, &uploadedAt); err != nil {
             continue
         }
-		gallery = append(gallery, map[string]interface{}{
-			"id":         id,
-            "url":        url,
+
+        gallery = append(gallery, map[string]interface{}{
+            "id": id,
+            "image_url": imageUrl.String,
+            "edit_url": editUrl.String,
+            "title": title.String,
             "uploadedAt": uploadedAt,
-		})
-	}
+        })
+    }
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(gallery)
@@ -323,4 +330,131 @@ func (h *GalleryHandler) ReorderGallery(w http.ResponseWriter, r *http.Request) 
     }
 
     w.WriteHeader(http.StatusNoContent)
+}
+
+// Put Edit Image
+func (h *GalleryHandler) UpdateDrawing(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+    claims, ok := r.Context().Value("claims").(jwt.MapClaims)
+    if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+    userIDFloat, ok := claims["id"].(float64)
+	if !ok {
+		http.Error(w, "Invalid user ID", http.StatusUnauthorized)
+		return
+	}
+	userID := int(userIDFloat)
+
+    idParam := r.URL.Query().Get("id")
+	if idParam == "" {
+		http.Error(w, "Missing drawing ID", http.StatusBadRequest)
+		return
+	}
+	drawingID, err := strconv.Atoi(idParam)
+	if err != nil {
+		http.Error(w, "Invalid drawing ID", http.StatusBadRequest)
+		return
+	}
+
+    var existingEditUrl, existingImageUrl sql.NullString
+    err = h.DB.QueryRow(
+		"SELECT edit_url, image_url FROM gallery WHERE id = $1 AND user_id = $2",
+		drawingID, userID,
+	).Scan(&existingEditUrl, &existingImageUrl)
+	if err != nil {
+		http.Error(w, "Drawing not found", http.StatusNotFound)
+		return
+	}
+
+    if err := r.ParseMultipartForm(20 << 20); err != nil {
+		http.Error(w, "Failed to parse multipart form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+    cld, err := cloudinary.NewFromURL(h.CloudinaryURL)
+    if err != nil {
+		http.Error(w, "Cloudinary init error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+    extractPublicID := func(url string) string {
+        uploadIndex := strings.Index(url, "/upload/")
+        if uploadIndex == -1 {
+            return ""
+        }
+        publicIDWithVersion := url[uploadIndex+len("/upload/"):]
+
+        slashIndex := strings.Index(publicIDWithVersion, "/")
+		if slashIndex != -1 {
+			publicIDWithVersion = publicIDWithVersion[slashIndex+1:]
+		}
+
+        dotIndex := strings.LastIndex(publicIDWithVersion, ".")
+        if dotIndex != -1 {
+            publicIDWithVersion = publicIDWithVersion[:dotIndex]
+        }
+        
+        return publicIDWithVersion
+    }
+
+    uploadFile := func(file multipart.File, existingURL sql.NullString) (string, error) {
+        defer file.Close()
+        params := uploader.UploadParams{ResourceType: "image"}
+        if existingURL.Valid && existingURL.String != "" {
+            publicID := extractPublicID(existingURL.String)
+            if publicID != "" {
+                params.PublicID = publicID
+                b := true
+                params.Overwrite = &b
+            }
+        }
+        res, err := cld.Upload.Upload(r.Context(), file, params)
+        if err != nil {
+            return "", err
+        }
+        return res.SecureURL, nil
+    }
+
+    var editURL, imageURL string
+
+    editFile, _, err := r.FormFile("editImage")
+    if err == nil {
+        editURL, err = uploadFile(editFile, existingEditUrl)
+        if err != nil {
+            http.Error(w, "Failed to upload edit image: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+        _, err = h.DB.Exec("UPDATE gallery SET edit_url=$1 WHERE id=$2 AND user_id=$3", editURL, drawingID, userID)
+        if err != nil {
+            http.Error(w, "Failed to update edit URL: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+    }
+
+    imageFile, _, err := r.FormFile("galleryImage")
+    if err == nil {
+        imageURL, err = uploadFile(imageFile, existingImageUrl)
+        if err != nil {
+            http.Error(w, "Failed to upload gallery image: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+        _, err = h.DB.Exec("UPDATE gallery SET image_url=$1 WHERE id=$2 AND user_id=$3", imageURL, drawingID, userID)
+        if err != nil {
+            http.Error(w, "Failed to update image URL: "+err.Error(), http.StatusInternalServerError)
+            return
+        }
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+
+    json.NewEncoder(w).Encode(map[string]string{
+        "editUrl":  editURL,
+        "imageUrl": imageURL,
+    })
 }

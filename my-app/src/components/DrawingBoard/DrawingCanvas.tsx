@@ -55,6 +55,7 @@ export const DrawingCanvas = forwardRef<
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             } else {
                 const img = new Image();
+                img.crossOrigin = "anonymous";
                 img.src = baseImage;
                 img.onload = () => {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);

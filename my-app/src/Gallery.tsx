@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities";
 interface Drawing {
     id: number;
     url: string;
+    editUrl?: string | null;
     uploadedAt: string;
     title?: string;
 }
@@ -107,6 +108,7 @@ function Gallery() {
                 setDrawings(Array.isArray(data) ? data.map((d: any) => ({
                     id: d.id,
                     url: d.image_url || d.url,
+                    editUrl: d.edit_url || d.editUrl || null,
                     uploadedAt: d.uploadedAt || d.uploaded_at,
                     title: d.title,
                 })) : []);
@@ -303,15 +305,30 @@ function Gallery() {
                                 <span className="text-slate-700 font-medium text-lg">
                                     {selected.title || "Untitled"}
                                 </span>
-                                <button
-                                    onClick={() => {
-                                        setDeleteTarget(selected.id);
-                                        setShowDeleteConfirm(true);
-                                    }}
-                                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
-                                >
-                                    Delete
-                                </button>
+                                <div className="flex gap-2">
+                                    {/* Edit Button */}
+                                    <button
+                                        onClick={() => {
+                                            sessionStorage.setItem("studio-edit-id", String(selected.id));
+                                            sessionStorage.setItem("studio-edit-url", (selected as any).editUrl || selected.url);
+                                            window.location.href = "/studio";
+                                        }}
+                                        className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+                                    >
+                                        Edit
+                                    </button>
+
+                                    {/* Delete Button */}
+                                    <button
+                                        onClick={() => {
+                                            setDeleteTarget(selected.id);
+                                            setShowDeleteConfirm(true);
+                                        }}
+                                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+                                    >
+                                        Delete
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
