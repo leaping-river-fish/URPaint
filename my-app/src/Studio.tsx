@@ -1,4 +1,4 @@
-// TO DO: fix lasso tool (fix up logic regarding saving image), add layers feature
+// TO DO: fix lasso tool (WTF IS HAPPENING), add layers feature
 import { useState, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import DrawingBoard from "./components/DrawingBoard/DrawingBoard";

@@ -1,10 +1,22 @@
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { useDrawing } from "./DrawingContext";
 
-export const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; isErasing: boolean; isFilling: boolean }>(
-    ({ baseImage, isErasing, isFilling }, ref) => {
+export const DrawingCanvas = forwardRef<
+    HTMLCanvasElement, 
+    { baseImage: string; isErasing: boolean; isFilling: boolean }
+>(({ baseImage, isErasing, isFilling }, ref) => {
         const canvasRef = useRef<HTMLCanvasElement | null>(null);
         const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+
+        useEffect (() => {
+            if (!ref) return;
+            if (typeof ref === "function") {
+                ref(canvasRef.current);
+            } else {
+                (ref as React.MutableRefObject<HTMLCanvasElement | null>).current = canvasRef.current;
+            }
+        }, [ref]);
+
         const [drawing, setDrawing] = useState(false);
         const [imageLoaded, setImageLoaded] = useState(false);
         const [cursorPos, setCursorPos] = useState<{
@@ -40,8 +52,7 @@ export const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; 
             }
             
             if (!baseImage) {
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
             } else {
                 const img = new Image();
                 img.src = baseImage;
@@ -116,21 +127,27 @@ export const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; 
         const floodFill = (ctx: CanvasRenderingContext2D, x: number, y: number, fillColor: string) => {
             const canvas = ctx.canvas;
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
             const targetColor = getPixelColor(imageData, x, y);
-            const replacementColor = hexToRgb(fillColor);
+            const rgb = hexToRgb(fillColor);
+            const replacementColor: [number, number, number, number] = [rgb[0], rgb[1], rgb[2], 255];
 
             if (colorsMatch(targetColor, replacementColor)) return;
 
             const stack = [{ x, y }];
+
             while (stack.length) {
                 const { x, y } = stack.pop()!;
                 let currentY = y;
                 while (currentY >= 0 && colorsMatch(getPixelColor(imageData, x, currentY), targetColor)) currentY--;
                 currentY++;
+
                 let reachLeft = false;
                 let reachRight = false;
+
                 while (currentY < canvas.height && colorsMatch(getPixelColor(imageData, x, currentY), targetColor)) {
                     setPixelColor(imageData, x, currentY, replacementColor);
+
                     if (x > 0) {
                         if (colorsMatch(getPixelColor(imageData, x - 1, currentY), targetColor)) {
                             if (!reachLeft) {
@@ -139,6 +156,7 @@ export const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; 
                             }
                         } else reachLeft = false;
                     }
+
                     if (x < canvas.width - 1) {
                         if (colorsMatch(getPixelColor(imageData, x + 1, currentY), targetColor)) {
                             if (!reachRight) {
@@ -153,25 +171,40 @@ export const DrawingCanvas = forwardRef<HTMLCanvasElement, { baseImage: string; 
             ctx.putImageData(imageData, 0, 0);
         };
 
-        const getPixelColor = (imageData: ImageData, x: number, y: number): [number, number, number] => {
+        const getPixelColor = (imageData: ImageData, x: number, y: number): [number, number, number, number] => {
             const index = (y * imageData.width + x) * 4;
             return [
                 imageData.data[index],
                 imageData.data[index + 1],
                 imageData.data[index + 2],
+                imageData.data[index + 3],
             ];
         };
 
-        const setPixelColor = (imageData: ImageData, x: number, y: number, color: [number, number, number]) => {
+        const setPixelColor = (
+            imageData: ImageData,
+            x: number,
+            y: number,
+            color: [number, number, number, number]
+        ) => {
             const index = (y * imageData.width + x) * 4;
             imageData.data[index] = color[0];
             imageData.data[index + 1] = color[1];
             imageData.data[index + 2] = color[2];
-            imageData.data[index + 3] = 255;
+            imageData.data[index + 3] = color[3];
         };
 
-        const colorsMatch = (a: [number, number, number], b: [number, number, number]): boolean => {
-            return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+        const colorsMatch = (
+            a: [number, number, number, number],
+            b: [number, number, number, number]
+        ): boolean => {
+            const tolerance = 10;
+            return (
+                Math.abs(a[0] - b[0]) <= tolerance &&
+                Math.abs(a[1] - b[1]) <= tolerance &&
+                Math.abs(a[2] - b[2]) <= tolerance &&
+                Math.abs(a[3] - b[3]) <= tolerance
+            );
         };
 
         const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
