@@ -125,7 +125,7 @@ function Profile() {
             {/* Back to Hub Button */}
             <button
                 onClick={() => navigate("/hub")}
-                className="absolute top-6 left-6 flex items-center space-x-1 px-3 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 shadow-md transition"
+                className="button-pop button-bounce absolute top-6 left-6 flex items-center space-x-1 px-3 py-2 bg-cyan-500 text-white font-medium rounded-lg hover:bg-cyan-600 shadow-md transition"
             >
                 <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -244,13 +244,13 @@ function Profile() {
                         <div className="flex justify-end space-x-3">
                             <button
                                 onClick={() => setShowLogoutModal(false)}
-                                className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                className="button-pop button-bounce px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleLogout}
-                                className="px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
+                                className="button-pop button-bounce px-4 py-2 rounded bg-red-500 text-white hover:bg-red-600"
                             >
                                 Logout
                             </button>

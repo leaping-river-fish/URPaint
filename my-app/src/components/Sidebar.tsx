@@ -64,7 +64,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
                     </button>
                     <button
                         onClick={() => navigate("/studio")}
-                        className="flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-sky-100 hover:scale-105 transition-transform"
+                        className="flex items-center gap-3 px-4 py-2 rounded-lg text-slate-700 hover:bg-green-100 hover:scale-105 transition-transform"
                     >
                         🎨 <span className="font-medium">Studio</span>
                     </button>
@@ -82,7 +82,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen }: SidebarProps) {
             <div className="border-t border-gray-200 p-4 flex items-center gap-3">
                 <button
                     onClick={() => navigate("/profile")}
-                    className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 hover:ring-2 hover:ring-sky-400 flex-shrink-0"
+                    className="button-pop button-bounce w-10 h-10 rounded-full overflow-hidden bg-gray-200 hover:ring-2 hover:ring-sky-400 flex-shrink-0"
                 >
                     {profile?.avatarUrl ? (
                     <img

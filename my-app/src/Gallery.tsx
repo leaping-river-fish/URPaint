@@ -18,7 +18,6 @@ import {
     SortableContext,
     useSortable,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 interface Drawing {
     id: number;
@@ -41,14 +40,19 @@ function SortableItem({ drawing, onClick }: SortableItemProps) {
         setIsMobile(checkMobile);
     }, []);
 
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: drawing.id,
     });
 
+    const transformString = transform
+        ? `translate3d(${transform.x}px, ${transform.y}px, 0) ${isDragging ? 'scale(1.1)' : ''}`
+        : undefined;
+
     const style = {
-        transform: CSS.Transform.toString(transform),
+        transform: transformString,
         transition,
         touchAction: "none" as const,
+        zIndex: isDragging ? 50 : 'auto',
     };
 
     return (
@@ -62,7 +66,7 @@ function SortableItem({ drawing, onClick }: SortableItemProps) {
             <img 
                 src={drawing.url}
                 alt="Drawing"
-                className="w-full h-auto rounded-2xl shadow-md cursor-pointer"
+                className={"w-full h-auto rounded-2xl shadow-md cursor-pointer image-hover"}
                 onClick={() => onClick(drawing)}
             />
 
@@ -260,7 +264,7 @@ function Gallery() {
                                                 setToast({ message: "Link copied to clipboard!", type: "success" });
                                             }
                                         }}
-                                        className="p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-md transition"
+                                        className="button-pop button-bounce p-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-md transition"
                                         title="Share"
                                     >
                                         <Share2 size={18} />
@@ -285,7 +289,7 @@ function Gallery() {
                                                 setToast({ message: "Failed to download image. Please try again.", type: "error" })
                                             }
                                         }}
-                                        className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-md transition"
+                                        className="button-pop button-bounce p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full shadow-md transition"
                                         title="Download"
                                     >
                                         <Download size={18} />
@@ -313,7 +317,7 @@ function Gallery() {
                                             sessionStorage.setItem("studio-edit-url", (selected as any).editUrl || selected.url);
                                             window.location.href = "/studio";
                                         }}
-                                        className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
+                                        className="button-pop button-bounce px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-medium transition"
                                     >
                                         Edit
                                     </button>
@@ -324,7 +328,7 @@ function Gallery() {
                                             setDeleteTarget(selected.id);
                                             setShowDeleteConfirm(true);
                                         }}
-                                        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
+                                        className="button-pop button-bounce px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition"
                                     >
                                         Delete
                                     </button>
@@ -351,7 +355,7 @@ function Gallery() {
                             <div className="flex justify-center gap-4">
                                 <button
                                     onClick={() => setShowDeleteConfirm(false)}
-                                    className="px-4 py-2 rounded-lg bg-slate-300 hover:bg-slate-400 text-slate-800 font-medium"
+                                    className="button-pop button-bounce px-4 py-2 rounded-lg bg-slate-300 hover:bg-slate-400 text-slate-800 font-medium"
                                 >
                                     Cancel
                                 </button>
@@ -361,7 +365,7 @@ function Gallery() {
                                         if (deleteTarget) handleDelete(deleteTarget);
                                         setShowDeleteConfirm(false);
                                     }}
-                                    className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium"          
+                                    className="button-pop button-bounce px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium"          
                                 >
                                     Delete
                                 </button>

@@ -247,7 +247,7 @@ function Studio() {
                                     setWebcamImage(null);
                                     setUploadImage(null);
                                 }}
-                                className={`px-4 py-2 rounded-lg text-white font-medium transition ${
+                                className={`button-pop button-bounce px-4 py-2 rounded-lg text-white font-medium transition ${
                                     freeDrawMode ? "bg-pink-500 hover:bg-pink-600" : "bg-sky-500 hover:bg-sky-600"
                                 }`}
                             >
@@ -266,11 +266,11 @@ function Studio() {
                             <div className="absolute bottom-4 flex gap-4">
                                 <button
                                     onClick={startWebcam}
-                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600"
                                 >
                                     Use Webcam
                                 </button>
-                                <label className="px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600 cursor-pointer">
+                                <label className="button-pop button-bounce px-4 py-2 bg-sky-500 text-white rounded-lg font-medium hover:bg-sky-600 cursor-pointer">
                                     Upload Image
                                 <input
                                     type="file"
@@ -334,7 +334,7 @@ function Studio() {
                             <div className="absolute bottom-4 flex gap-4">
                                 <button
                                     onClick={captureFromWebcam}
-                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                                 >
                                     Capture Image
                                 </button>
@@ -344,7 +344,7 @@ function Studio() {
                                         setWebcamStream(null);
                                         setUsingWebcam(false);
                                     }}
-                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                                 >
                                     Cancel
                                 </button>
@@ -358,7 +358,7 @@ function Studio() {
                                         setWebcamImage(null);
                                         startWebcam();
                                     }}
-                                    className="px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-sky-500 text-white rounded-lg hover:bg-sky-600"
                                 >
                                     Retake Photo
                                 </button>
@@ -367,7 +367,7 @@ function Studio() {
                                         setWebcamImage(null);
                                         setUsingWebcam(false);
                                     }}
-                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                                 >
                                     Cancel
                                 </button>
@@ -377,7 +377,7 @@ function Studio() {
                         {/* Upload buttons */}
                         {uploadImage && !freeDrawMode && !result && (
                             <div className="absolute bottom-4 flex gap-4">
-                                <label className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 cursor-pointer">
+                                <label className="button-pop button-bounce px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 cursor-pointer">
                                     Upload Another
                                     <input
                                         type="file"
@@ -392,7 +392,7 @@ function Studio() {
                                 </label>
                                 <button
                                     onClick={() => setUploadImage(null)}
-                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                                 >
                                     Cancel
                                 </button>
@@ -404,7 +404,7 @@ function Studio() {
                             <div className="absolute bottom-4 right-4">
                                 <button
                                     onClick={handleUpload}
-                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                                    className="button-pop button-bounce px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
                                     disabled={loading}
                                 >
                                     {loading ? "Processing..." : "Convert to Coloring Page"}
@@ -427,7 +427,7 @@ function Studio() {
                                         setShowRestartConfirm(true);
                                     }
                                 }}
-                                className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600"
+                                className="button-pop button-bounce px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600"
                             >
                                 {isEditMode ? "Cancel" : "Restart"}
                             </button>
@@ -435,7 +435,7 @@ function Studio() {
                             {/* Save Button */}
                             <button
                                 onClick={handleSaveToGallery}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600"
+                                className="button-pop button-bounce px-4 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600"
                             >
                                 Save to Gallery
                             </button>
@@ -464,13 +464,13 @@ function Studio() {
 
                                             setShowRestartConfirm(false);
                                         }}
-                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                        className="button-pop button-bounce px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                                     >
                                         Yes, Restart
                                     </button>
                                     <button
                                         onClick={() => setShowRestartConfirm(false)}
-                                        className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
+                                        className="button-pop button-bounce px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
                                     >
                                         Cancel
                                     </button>
